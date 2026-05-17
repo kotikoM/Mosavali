@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.picker import router as pickers_router
 from app.routers.fruit import router as fruits_router
 from app.routers.box import router as boxes_router
-
+from app.routers.print_batch import router as print_batches_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(pickers_router)
 app.include_router(fruits_router)
 app.include_router(boxes_router)
+app.include_router(print_batches_router)
 
 
 @app.get("/health")
