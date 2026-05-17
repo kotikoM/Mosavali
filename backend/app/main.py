@@ -5,6 +5,7 @@ from app.routers.picker import router as pickers_router
 from app.routers.fruit import router as fruits_router
 from app.routers.box import router as boxes_router
 from app.routers.print_batch import router as print_batches_router
+from app.routers.harvest import router as harvest_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,6 +25,7 @@ app.include_router(pickers_router)
 app.include_router(fruits_router)
 app.include_router(boxes_router)
 app.include_router(print_batches_router)
+app.include_router(harvest_router)
 
 
 @app.get("/health")
