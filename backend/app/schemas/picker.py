@@ -10,6 +10,14 @@ class PickerCreate(BaseModel):
     note:         str | None = None
 
 
+class PickerUpdate(BaseModel):
+    first_name:   str | None = None
+    last_name:    str | None = None
+    origin_place: str | None = None
+    bank_info:    str | None = None
+    note:         str | None = None
+
+
 class PickerResponse(BaseModel):
     picker_id:    int
     national_id:  str
