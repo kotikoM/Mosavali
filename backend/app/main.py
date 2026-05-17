@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers.picker import router as pickers_router
 from app.routers.fruit import router as fruits_router
+from app.routers.box import router as boxes_router
 
 
 @asynccontextmanager
@@ -15,12 +16,13 @@ app = FastAPI(title="Mosavali", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
     allow_headers=["*"],
+    allow_methods=["*"],
 )
 
 app.include_router(pickers_router)
 app.include_router(fruits_router)
+app.include_router(boxes_router)
 
 
 @app.get("/health")
