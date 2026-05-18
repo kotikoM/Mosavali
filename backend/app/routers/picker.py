@@ -49,3 +49,24 @@ async def update_picker(picker_id: int, data: PickerUpdate, db: AsyncSession = D
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=409, detail="Update caused a conflict")
+
+
+@router.delete("/{picker_id}")
+async def delete_picker(picker_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Picker).where(Picker.picker_id == picker_id)
+    )
+    picker = result.scalar_one_or_none()
+
+    if not picker:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Picker {picker_id} not found"
+        )
+
+    await db.delete(picker)
+    await db.commit()
+
+    return {
+        "message": f"Picker {picker_id} deleted successfully"
+    }
