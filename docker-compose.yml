@@ -29,5 +29,16 @@ services:
       - ./backend/app:/app/app
       - ./backend/migrations:/app/migrations
 
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - backend
+
 volumes:
   mosavali_pgdata:
