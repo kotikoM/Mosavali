@@ -4,25 +4,26 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   getGroupedRowModel,
   flexRender,
 } from '@tanstack/react-table'
 import type { ColumnDef, SortingState } from '@tanstack/react-table'
-import { UserPlus, Filter, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { UserPlus, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { getPickers, createPicker, updatePicker, deletePicker } from '../api/pickers'
 import type { Picker, PickerCreate, PickerUpdate } from '../api/pickers'
 import PickerDialog from '../components/PickerDialog'
+import Toast from '../components/Toast'
+import { useToast } from '../hooks/useToast'
+import axios from 'axios'
 
 export default function Pickers() {
-  const queryClient = useQueryClient()
-  const [dialogOpen, setDialogOpen]     = useState(false)
-  const [editPicker, setEditPicker]     = useState<Picker | null>(null)
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting]           = useState<SortingState>([])
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null)
-  const [grouping, setGrouping]         = useState<string[]>([])
+  const queryClient                                   = useQueryClient()
+  const { toasts, addToast, removeToast }             = useToast()
+  const [dialogOpen, setDialogOpen]                   = useState(false)
+  const [editPicker, setEditPicker]                   = useState<Picker | null>(null)
+  const [globalFilter, setGlobalFilter]               = useState('')
+  const [sorting, setSorting]                         = useState<SortingState>([])
 
   const { data: pickers = [], isLoading } = useQuery({
     queryKey: ['pickers'],
@@ -34,6 +35,14 @@ export default function Pickers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pickers'] })
       setDialogOpen(false)
+      addToast('Picker registered successfully', 'success')
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        addToast(error.response.data.detail, 'error')
+      } else {
+        addToast('Failed to register picker', 'error')
+      }
     }
   })
 
@@ -43,13 +52,21 @@ export default function Pickers() {
       queryClient.invalidateQueries({ queryKey: ['pickers'] })
       setDialogOpen(false)
       setEditPicker(null)
+      addToast('Picker updated successfully', 'success')
+    },
+    onError: () => {
+      addToast('Failed to update picker', 'error')
     }
   })
 
-  const deleteMutation  = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: (id: number) => deletePicker(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pickers'] })
+      addToast('Picker removed', 'success')
+    },
+    onError: () => {
+      addToast('Failed to remove picker', 'error')
     }
   })
 
@@ -67,12 +84,8 @@ export default function Pickers() {
   }
 
   const handleDelete = (picker: Picker) => {
-    const confirmed = window.confirm(
-     `Delete ${picker.first_name} ${picker.last_name}?`
-    )
-
+    const confirmed = window.confirm(`Delete ${picker.first_name} ${picker.last_name}?`)
     if (!confirmed) return
-
     deleteMutation.mutate(picker.picker_id)
   }
 
@@ -81,7 +94,7 @@ export default function Pickers() {
     setDialogOpen(true)
   }
 
-const formatNationalId = (id: string) =>
+  const formatNationalId = (id: string) =>
     `${id.slice(0, 2)}-${id.slice(2, 5)}-${id.slice(5, 11)}`
 
   const columns = useMemo<ColumnDef<Picker>[]>(() => [
@@ -105,7 +118,6 @@ const formatNationalId = (id: string) =>
     {
       header: 'Origin',
       accessorKey: 'origin_place',
-      enableGrouping: true,
       cell: info => <span className="text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
     },
     {
@@ -113,21 +125,20 @@ const formatNationalId = (id: string) =>
       id: 'actions',
       enableSorting: false,
       cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleEdit(row.original)}
-              className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition-colors"
-            >
-              <Pencil size={15} strokeWidth={2.5} />
-            </button>
-
-            <button
-              onClick={() => handleDelete(row.original)}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-600 transition-colors"
-            >
-              <Trash2 size={15} strokeWidth={2.5} />
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleEdit(row.original)}
+            className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition-colors"
+          >
+            <Pencil size={15} strokeWidth={2.5} />
+          </button>
+          <button
+            onClick={() => handleDelete(row.original)}
+            className="p-1.5 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-600 transition-colors"
+          >
+            <Trash2 size={15} strokeWidth={2.5} />
+          </button>
+        </div>
       ),
     },
   ], [])
@@ -162,17 +173,15 @@ const formatNationalId = (id: string) =>
       {/* Table card */}
       <div className="bg-white rounded-2xl border border-neutral-100 overflow-hidden">
 
-        {/* Table toolbar */}
+        {/* Toolbar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
           <p className="text-base font-semibold text-neutral-800">Active Pickers</p>
-          <div className="flex items-center gap-3">
-            <input
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
-              placeholder="Search pickers..."
-              className="px-4 py-2 text-sm rounded-lg bg-neutral-50 border border-neutral-200 outline-none focus:border-primary w-52 transition-colors"
-            />
-          </div>
+          <input
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            placeholder="Search pickers..."
+            className="px-4 py-2 text-sm rounded-lg bg-neutral-50 border border-neutral-200 outline-none focus:border-primary w-52 transition-colors"
+          />
         </div>
 
         {/* Table */}
@@ -219,7 +228,6 @@ const formatNationalId = (id: string) =>
             </tbody>
           </table>
         )}
-
       </div>
 
       {/* Dialog */}
@@ -230,6 +238,9 @@ const formatNationalId = (id: string) =>
         picker={editPicker}
         loading={createMutation.isPending || updateMutation.isPending}
       />
+
+      {/* Toasts */}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
     </div>
   )
