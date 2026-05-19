@@ -162,7 +162,7 @@ export default function Pickers() {
 
       {/* Header */}
       <div className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-neutral-800">Pickers</h1>
+        <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
         <button
           onClick={handleOpenCreate}
           className="flex items-center gap-2 w-fit px-5 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary transition-colors"
