@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Check } from 'lucide-react'
+import { FRUIT_TYPES } from '../utils/fruitStyles'
 import type { FruitCreate } from '../api/fruits'
-
-const FRUIT_TYPES = [
-  'Blueberry',
-  'Hazelnut',
-  'Walnut',
-  'Tea',
-]
 
 interface Props {
   open:     boolean

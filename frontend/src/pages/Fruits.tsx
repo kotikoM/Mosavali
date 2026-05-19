@@ -11,6 +11,7 @@ import type { ColumnDef, SortingState } from '@tanstack/react-table'
 import { Plus, ChevronUp, ChevronDown } from 'lucide-react'
 import { getFruits, createFruit } from '../api/fruits'
 import type { Fruit, FruitCreate } from '../api/fruits'
+import { FRUIT_COLOR_MAP } from '../utils/fruitStyles'
 import FruitDialog from '../components/FruitDialog'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
@@ -48,11 +49,16 @@ export default function Fruits() {
     {
       header: 'Fruit Type',
       accessorKey: 'fruit_type',
-      cell: info => (
-        <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold bg-neutral-800 text-white uppercase tracking-wide">
-          {info.getValue<string>()}
-        </span>
-      ),
+      cell: info => {
+          const value = info.getValue<string>()
+          const style = FRUIT_COLOR_MAP[value] ?? 'bg-neutral-700 text-white'
+
+          return (
+              <span className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wide ${style}`}>
+              {value}
+              </span>
+          )
+      },
     },
     {
       header: 'Variety Name',

@@ -48,6 +48,12 @@ export default {
           700: '#2A2C30',
           800: '#1C1E20',
           900: '#0E0F10',
+        },
+        fruit: {
+          blueberry: '#2A416F',
+          hazelnut: '#ae734e',
+          walnut: '#59392B',
+          tea: '#4F6B5A',
         }
       },
       fontFamily: {
