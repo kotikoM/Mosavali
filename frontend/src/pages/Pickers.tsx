@@ -13,17 +13,19 @@ import { UserPlus, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { getPickers, createPicker, updatePicker, deletePicker } from '../api/pickers'
 import type { Picker, PickerCreate, PickerUpdate } from '../api/pickers'
 import PickerDialog from '../components/PickerDialog'
+import ConfirmDialog from '../components/ConfirmDialog'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import axios from 'axios'
 
 export default function Pickers() {
-  const queryClient                                   = useQueryClient()
-  const { toasts, addToast, removeToast }             = useToast()
-  const [dialogOpen, setDialogOpen]                   = useState(false)
-  const [editPicker, setEditPicker]                   = useState<Picker | null>(null)
-  const [globalFilter, setGlobalFilter]               = useState('')
-  const [sorting, setSorting]                         = useState<SortingState>([])
+  const queryClient                       = useQueryClient()
+  const { toasts, addToast, removeToast } = useToast()
+  const [dialogOpen, setDialogOpen]       = useState(false)
+  const [editPicker, setEditPicker]       = useState<Picker | null>(null)
+  const [deleteTarget, setDeleteTarget]   = useState<Picker | null>(null)
+  const [globalFilter, setGlobalFilter]   = useState('')
+  const [sorting, setSorting]             = useState<SortingState>([])
 
   const { data: pickers = [], isLoading } = useQuery({
     queryKey: ['pickers'],
@@ -83,10 +85,10 @@ export default function Pickers() {
     setDialogOpen(true)
   }
 
-  const handleDelete = (picker: Picker) => {
-    const confirmed = window.confirm(`Delete ${picker.first_name} ${picker.last_name}?`)
-    if (!confirmed) return
-    deleteMutation.mutate(picker.picker_id)
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return
+    deleteMutation.mutate(deleteTarget.picker_id)
+    setDeleteTarget(null)
   }
 
   const handleOpenCreate = () => {
@@ -133,7 +135,7 @@ export default function Pickers() {
             <Pencil size={15} strokeWidth={2.5} />
           </button>
           <button
-            onClick={() => handleDelete(row.original)}
+            onClick={() => setDeleteTarget(row.original)}
             className="p-1.5 rounded-lg hover:bg-red-50 text-neutral-400 hover:text-red-600 transition-colors"
           >
             <Trash2 size={15} strokeWidth={2.5} />
@@ -230,13 +232,31 @@ export default function Pickers() {
         )}
       </div>
 
-      {/* Dialog */}
+      {/* Picker dialog */}
       <PickerDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditPicker(null) }}
         onSubmit={handleSubmit}
         picker={editPicker}
         loading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      {/* Confirm delete dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Picker"
+        message={
+            <>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-neutral-800">
+                {deleteTarget?.first_name} {deleteTarget?.last_name}
+              </span>
+              ? This action cannot be undone.
+            </>
+          }
+        confirmLabel="Delete"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       {/* Toasts */}
