@@ -172,7 +172,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary-600 transition-colors disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary-500 transition-colors disabled:opacity-50"
           >
             <UserPlus size={16} />
             {isEdit ? 'Save Changes' : 'Register Staff Member'}
