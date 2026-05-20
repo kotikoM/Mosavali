@@ -7,7 +7,7 @@ const links = [
   { to: '/printing',  label: 'Printing',  icon: Printer },
   { to: '/pickers',   label: 'Pickers',   icon: Users },
   { to: '/fruits',    label: 'Fruits',    icon: Apple },
-  { to: '/box-types', label: 'Box Types', icon: Box },
+  { to: '/box-types', label: 'Boxes', icon: Box },
 ]
 
 export default function Sidebar() {

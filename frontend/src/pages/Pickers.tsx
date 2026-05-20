@@ -115,12 +115,12 @@ export default function Pickers() {
     {
       header: 'National ID',
       accessorKey: 'national_id',
-      cell: info => <span className="font-mono text-sm text-neutral-600">{formatNationalId(info.getValue<string>())}</span>,
+      cell: info => <span className="font-mono text-neutral-800">{formatNationalId(info.getValue<string>())}</span>,
     },
     {
       header: 'Origin',
       accessorKey: 'origin_place',
-      cell: info => <span className="text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
+      cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
     },
     {
       header: 'Actions',
@@ -162,7 +162,12 @@ export default function Pickers() {
 
       {/* Header */}
       <div className="flex flex-col gap-4">
+        <div>
         <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
+        <p className="mt-2 text-sm text-neutral-500">
+              Configure harvesters.
+        </p>
+        </div>
         <button
           onClick={handleOpenCreate}
           className="flex items-center gap-2 w-fit px-5 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary transition-colors"
@@ -173,17 +178,26 @@ export default function Pickers() {
       </div>
 
       {/* Table card */}
-      <div className="bg-white rounded-2xl border border-neutral-100 overflow-hidden">
+      <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm">
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
-          <p className="text-base font-semibold text-neutral-800">Active Pickers</p>
-          <input
-            value={globalFilter}
-            onChange={e => setGlobalFilter(e.target.value)}
-            placeholder="Search pickers..."
-            className="px-4 py-2 text-sm rounded-lg bg-neutral-50 border border-neutral-200 outline-none focus:border-primary w-52 transition-colors"
-          />
+        <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-5">
+          <div>
+              <p className="text-lg font-semibold text-neutral-900">
+                Pickers Catalogue
+              </p>
+
+              <p className="text-sm text-neutral-400">
+                {pickers.length} registered
+              </p>
+            </div>
+
+            <input
+              value={globalFilter}
+              onChange={e => setGlobalFilter(e.target.value)}
+              placeholder="Search pickers..."
+              className="w-64 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+            />
         </div>
 
         {/* Table */}
@@ -193,12 +207,12 @@ export default function Pickers() {
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id} className="border-b border-neutral-100 bg-neutral-100">
+                <tr key={hg.id} className="border-b border-neutral-100 bg-neutral-50">
                   {hg.headers.map(header => (
                     <th
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      className="px-6 py-3 text-left text-sm font-semibold text-neutral-800 uppercase tracking-wide cursor-pointer select-none"
+                      className="px-6 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest cursor-pointer select-none"
                     >
                       <div className="flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
@@ -222,7 +236,7 @@ export default function Pickers() {
               ))}
               {table.getRowModel().rows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length} className="px-6 py-16 text-center text-neutral-400 text-sm">
+                  <td colSpan={columns.length} className="px-6 py-20 text-center text-neutral-400 text-sm">
                     No pickers found.
                   </td>
                 </tr>

@@ -47,6 +47,15 @@ export default function Fruits() {
 
   const columns = useMemo<ColumnDef<Fruit>[]>(() => [
     {
+      header: 'ID',
+      accessorKey: 'fruit_id',
+      cell: info => (
+        <span className="font-mono text-sm text-neutral-400">
+          FR-{String(info.getValue<number>()).padStart(3, '0')}
+        </span>
+      ),
+    },
+    {
       header: 'Fruit Type',
       accessorKey: 'fruit_type',
       cell: info => {
@@ -66,15 +75,6 @@ export default function Fruits() {
       cell: info => (
         <span className="text-base font-semibold text-neutral-800 capitalize">
           {info.getValue<string>()}
-        </span>
-      ),
-    },
-    {
-      header: 'Code / ID',
-      accessorKey: 'fruit_id',
-      cell: info => (
-        <span className="font-mono text-sm text-neutral-400">
-          FR-{String(info.getValue<number>()).padStart(3, '0')}
         </span>
       ),
     },
@@ -100,6 +100,9 @@ export default function Fruits() {
           <h1 className="text-3xl font-bold text-neutral-800">
             Fruit <span className="font-light text-neutral-400">Inventory</span>
           </h1>
+          <p className="mt-2 text-sm text-neutral-500">
+              Configure fruits to be harvested.
+           </p>
         </div>
         <button
           onClick={() => setDialogOpen(true)}
@@ -112,17 +115,27 @@ export default function Fruits() {
 
 
       {/* Table card */}
-      <div className="bg-white rounded-2xl border border-neutral-100 overflow-hidden">
+      <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm">
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
-          <p className="text-base font-semibold text-neutral-800">Fruit Catalogue</p>
-          <input
-            value={globalFilter}
-            onChange={e => setGlobalFilter(e.target.value)}
-            placeholder="Search cultivars..."
-            className="px-4 py-2 text-sm rounded-lg bg-neutral-50 border border-neutral-200 outline-none focus:border-primary w-56 transition-colors"
-          />
+        <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-5">
+            <div>
+              <p className="text-lg font-semibold text-neutral-900">
+                Fruit Catalogue
+              </p>
+
+              <p className="text-sm text-neutral-400">
+                {fruits.length} registered
+              </p>
+            </div>
+
+            <input
+              value={globalFilter}
+              onChange={e => setGlobalFilter(e.target.value)}
+              placeholder="Search box types..."
+              className="w-64 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+            />
+
         </div>
 
         {/* Table */}
