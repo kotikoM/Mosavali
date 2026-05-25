@@ -132,7 +132,7 @@ export default function Fruits() {
             <input
               value={globalFilter}
               onChange={e => setGlobalFilter(e.target.value)}
-              placeholder="Search box types..."
+              placeholder="Search fruits..."
               className="w-64 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
             />
 

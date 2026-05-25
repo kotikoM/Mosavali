@@ -103,7 +103,7 @@ export default function Pickers() {
     {
       header: 'ID',
       accessorKey: 'picker_id',
-      cell: info => <span className="text-neutral-400 font-mono">#{String(info.getValue<number>()).padStart(3, '0')}</span>,
+      cell: info => <span className="text-neutral-400 font-mono">P-{String(info.getValue<number>()).padStart(3, '0')}</span>,
       size: 80,
     },
     {
