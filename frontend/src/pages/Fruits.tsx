@@ -106,7 +106,7 @@ export default function Fruits() {
         </div>
         <button
           onClick={() => setDialogOpen(true)}
-          className="flex items-center gap-2 w-fit px-5 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-lg hover:bg-primary transition-colors"
+          className="flex items-center gap-3 w-fit px-6 py-3 bg-primary-700 text-white font-semibold rounded-xl hover:bg-primary transition-colors"
         >
           <Plus size={17} strokeWidth={2.5} />
           Add New Fruit
