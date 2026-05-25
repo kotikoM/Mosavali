@@ -41,9 +41,9 @@ const REASON_LABELS: Record<string, string> = {
 
 // ── component ──────────────────────────────────────────────────────────
 export default function Scanning() {
-  const queryClient               = useQueryClient()
+  const queryClient                       = useQueryClient()
   const { toasts, addToast, removeToast } = useToast()
-  const { playError }             = useErrorSound()
+  const { playError }                     = useErrorSound()
 
   // session state
   const [sessionActive, setSessionActive] = useState(false)
@@ -128,7 +128,6 @@ export default function Scanning() {
       if (!result.valid) {
         playError()
         setErrorPopup(result)
-        setInput('')
         return
       }
 
@@ -286,27 +285,65 @@ export default function Scanning() {
 
   // ── active session page ────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-neutral-50 z-40 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-neutral-100 z-40 flex flex-col overflow-hidden">
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-neutral-100">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Active Scanning Mode</p>
-          <p className="text-xl font-bold text-neutral-800">Scan Session</p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-50 border border-primary-100">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-xs font-bold text-primary-700 uppercase tracking-wide">Live</span>
+      <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-neutral-100 shadow-sm">
+        <div className="flex items-center gap-4">
+          <p className="text-2xl font-black text-neutral-900">Active Scan Session</p>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-100 border border-neutral-200">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+            <span className="text-2xl font-black text-neutral-900">Scanner Ready</span>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden gap-0">
+      <div className="flex flex-1 overflow-hidden">
 
-        {/* Left — scanner */}
-        <div className="flex-1 flex flex-col gap-6 p-8 overflow-y-auto">
+        {/* Left — main scan area */}
+        <div className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
+
+          {/* Barcode input — grows to fill space */}
+          <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col gap-4 flex-1">
+
+            <div className="flex-[2] relative">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="XX-XXXX-XXXX"
+                maxLength={12}
+                className="w-full h-full min-h-32 px-8 rounded-2xl border-2 border-neutral-200 bg-neutral-50 text-5xl font-mono tracking-[0.3em] outline-none focus:border-primary transition-colors text-center placeholder:text-neutral-200"
+                autoComplete="off"
+                autoFocus
+              />
+              {input && (
+                <button
+                  onClick={() => { setInput(''); inputRef.current?.focus() }}
+                  className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500 transition-colors"
+                >
+                  <X size={22} />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => submitBarcode(input)}
+              disabled={!isComplete(input)}
+              className="flex-[1] w-full rounded-xl bg-primary-700 text-white text-lg font-bold hover:bg-primary transition-colors disabled:opacity-30 flex items-center justify-center gap-3"
+            >
+              ADD TO QUEUE
+              <ChevronRight size={22} strokeWidth={3} />
+            </button>
+
+            <p className="text-xs text-neutral-400 text-center shrink-0">
+              Scanner auto-submits. Manual entry requires Enter or Add button
+            </p>
+          </div>
 
           {/* Session config */}
-          <div className="bg-white rounded-2xl border border-neutral-100 p-6">
+          <div className="bg-white rounded-2xl shadow-md p-6 shrink-0">
             <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4">Session Configuration</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -315,7 +352,7 @@ export default function Scanning() {
                   type="date"
                   value={harvestDate}
                   onChange={e => setHarvestDate(e.target.value)}
-                  className="mt-1 w-full px-4 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
+                  className="mt-2 w-full px-4 py-3 rounded-xl border border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
                 />
               </div>
               <div>
@@ -323,7 +360,7 @@ export default function Scanning() {
                 <select
                   value={boxTypeId ?? ''}
                   onChange={e => setBoxTypeId(Number(e.target.value))}
-                  className={`mt-1 w-full px-4 py-2.5 rounded-xl border bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
+                  className={`mt-2 w-full px-4 py-3 rounded-xl border bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
                     ${!boxTypeId ? 'text-neutral-400 border-neutral-200' : 'text-neutral-800 border-neutral-200'}`}
                 >
                   <option value="" disabled>Select box type...</option>
@@ -337,47 +374,8 @@ export default function Scanning() {
             </div>
           </div>
 
-          {/* Barcode input */}
-          <div className="bg-white rounded-2xl border border-neutral-100 p-6">
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4">Scan Barcode</p>
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="XX-XXXX-XXXX"
-                  maxLength={12}
-                  className="w-full px-5 py-4 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-xl font-mono tracking-widest outline-none focus:border-primary transition-colors text-center"
-                  autoComplete="off"
-                  autoFocus
-                />
-                {input && (
-                  <button
-                    onClick={() => setInput('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => submitBarcode(input)}
-                disabled={!isComplete(input)}
-                className="px-6 py-4 rounded-xl bg-primary-700 text-white font-semibold hover:bg-primary transition-colors disabled:opacity-30 flex items-center gap-2"
-              >
-                <ChevronRight size={20} strokeWidth={2.5} />
-                Add
-              </button>
-            </div>
-            <p className="text-xs text-neutral-400 mt-2 text-center">
-              Scanner auto-submits · Manual entry requires Enter or Add button
-            </p>
-          </div>
-
           {/* Commit / Cancel */}
-          <div className="flex gap-4 mt-auto">
+          <div className="flex gap-4 shrink-0">
             <button
               onClick={() => {
                 setSessionActive(false)
@@ -385,56 +383,62 @@ export default function Scanning() {
                 setInput('')
                 setBoxTypeId(null)
               }}
-              className="flex-1 py-4 rounded-xl border-2 border-neutral-200 text-neutral-600 font-semibold hover:bg-neutral-100 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-5 rounded-xl border-2 border-neutral-200 bg-white shadow-sm text-neutral-600 text-base font-semibold hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2"
             >
-              <X size={18} />
-              Cancel Session
+              <X size={18} strokeWidth={2.5} />
+              Clear Session
             </button>
             <button
               onClick={() => commitMutation.mutate()}
               disabled={validCount === 0 || !boxTypeId || !harvestDate || commitMutation.isPending}
-              className="flex-2 flex-1 py-4 rounded-xl bg-primary-700 text-white font-semibold hover:bg-primary transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              className="flex-[2] py-5 rounded-xl bg-primary-700 text-white text-base font-bold hover:bg-primary transition-colors disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
             >
-              <CheckCircle size={18} />
-              {commitMutation.isPending ? 'Committing...' : `Commit ${validCount} Entries`}
+              <CheckCircle size={18} strokeWidth={2.5} />
+              {commitMutation.isPending ? 'Committing...' : `Commit Batch (${validCount} Entries)`}
             </button>
           </div>
 
         </div>
 
         {/* Right — counter + queue */}
-        <div className="w-80 shrink-0 bg-white border-l border-neutral-100 flex flex-col">
+        <div className="w-80 shrink-0 flex flex-col border-l border-neutral-200 bg-white shadow-[-4px_0_12px_rgba(0,0,0,0.04)]">
 
           {/* Counter */}
-          <div className="bg-primary-700 p-8 flex flex-col items-center justify-center">
-            <span className="text-7xl font-black text-white tracking-tight">{validCount}</span>
-            <span className="text-primary-200 text-sm font-semibold uppercase tracking-widest mt-1">Scanned</span>
+          <div className="bg-primary-700 p-10 flex flex-col items-center justify-center">
+            <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
+            <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
           </div>
 
-          {/* Queue */}
+          {/* Queue header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
+            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
+          </div>
+
+          {/* Queue list */}
           <div className="flex-1 overflow-y-auto">
-            <div className="px-4 py-3 border-b border-neutral-100">
-              <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Queue</p>
-            </div>
             {queue.length === 0 ? (
-              <div className="flex items-center justify-center h-32 text-neutral-300 text-sm">
-                No barcodes yet
+              <div className="flex flex-col items-center justify-center h-40 gap-2">
+                <ScanBarcode size={28} className="text-neutral-200" />
+                <p className="text-sm text-neutral-300">No barcodes yet</p>
               </div>
             ) : (
               <div className="flex flex-col">
                 {[...queue].reverse().map((item, idx) => (
                   <div
                     key={item.id}
-                    className={`flex items-center justify-between px-4 py-3 border-b border-neutral-50
-                      ${idx === 0 ? 'bg-primary-50' : ''}`}
+                    className={`flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 transition-colors bg-neutral-50`}
                   >
                     <div className="flex items-center gap-3">
-                      <CheckCircle size={15} className="text-primary shrink-0" strokeWidth={2.5} />
+                      <CheckCircle
+                        size={15}
+                        className={'text-neutral-300'}
+                        strokeWidth={2.5}
+                      />
                       <span className="font-mono text-sm text-neutral-700">{item.barcode}</span>
                     </div>
                     <button
                       onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))}
-                      className="text-neutral-300 hover:text-red-500 transition-colors p-1"
+                      className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded"
                     >
                       <Trash2 size={14} strokeWidth={2.5} />
                     </button>
@@ -447,7 +451,7 @@ export default function Scanning() {
         </div>
       </div>
 
-      {/* Error popup — must be closed manually */}
+      {/* Error popup */}
       {errorPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" />
@@ -470,10 +474,7 @@ export default function Scanning() {
               <p className="font-mono text-sm text-neutral-300 mt-3">{errorPopup.barcode}</p>
             </div>
             <button
-              onClick={() => {
-                setErrorPopup(null)
-                inputRef.current?.focus()
-              }}
+              onClick={() => { setErrorPopup(null); inputRef.current?.focus() }}
               className="w-full py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors"
             >
               Dismiss
