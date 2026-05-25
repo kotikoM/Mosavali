@@ -9,3 +9,60 @@
     @apply bg-neutral-50 text-neutral-500 font-sans;
   }
 }
+.rdp-root {
+  --rdp-accent-color:            #2D5A27;
+  --rdp-accent-background-color: #F0F5EF;
+  --rdp-today-color:             #2D5A27;
+  --rdp-selected-border:         2px solid #144111;
+  --rdp-day_button-border:       2px solid transparent;
+}
+
+.rdp-day_button:hover:not(:disabled) {
+  background-color: #F0F5EF;
+  color: #2D5A27;
+}
+
+.rdp-selected .rdp-day_button {
+  background-color: #144111;
+  color: #ffffff;
+}
+
+.rdp-caption_label {
+  font-weight: 700;
+  color: #2D5A27;
+  font-family: 'Inter', sans-serif;
+}
+
+/* target every possible chevron/arrow element */
+.rdp-chevron {
+  fill: #2D5A27 !important;
+  stroke: #2D5A27 !important;
+}
+
+.rdp-button_next svg,
+.rdp-button_previous svg,
+.rdp-button_next svg *,
+.rdp-button_previous svg * {
+  fill: #2D5A27 !important;
+  stroke: #2D5A27 !important;
+  color: #2D5A27 !important;
+}
+
+.rdp-button_next:hover,
+.rdp-button_previous:hover {
+  background-color: #F0F5EF;
+  border-radius: 0.5rem;
+}
+
+.rdp-selected .rdp-day_button {
+  background-color: #144111 !important;
+  color: #ffffff !important;
+  border: 2px solid #144111 !important;
+  outline: none !important;
+}
+
+.rdp-today:not(.rdp-selected) .rdp-day_button {
+  color: #2D5A27 !important;
+  border: 2px solid #2D5A27 !important;
+  font-weight: 700;
+}
