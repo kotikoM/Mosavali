@@ -41,8 +41,8 @@ export default function DatePicker({ value, onChange, className }: Props) {
             : 'border-neutral-200 bg-neutral-50 text-neutral-800 hover:border-primary hover:bg-primary-50'
           } ${className}`}
       >
-        <CalendarDays size={15} strokeWidth={2.5} className="text-neutral-400 shrink-0" />
         {display}
+        <CalendarDays size={15} strokeWidth={2.5} className="text-neutral-400 shrink-0" />
       </button>
 
       {/* Popup */}

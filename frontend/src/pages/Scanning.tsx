@@ -9,6 +9,7 @@ import type { HarvestEntry, BarcodeCheckResponse } from '../api/harvest'
 import { useErrorSound } from '../hooks/useErrorSound'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
+import DatePicker from '../components/DatePicker'
 
 // ── types ──────────────────────────────────────────────────────────────
 type ScanStatus = 'idle' | 'valid' | 'error'
@@ -288,12 +289,48 @@ export default function Scanning() {
     <div className="fixed inset-0 bg-neutral-100 z-40 flex flex-col overflow-hidden">
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-neutral-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <p className="text-2xl font-black text-neutral-900">Active Scan Session</p>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-100 border border-neutral-200">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
-            <span className="text-2xl font-black text-neutral-900">Scanner Ready</span>
+      <div className="flex items-center justify-between px-8 py-5 bg-white border-b border-neutral-100 shadow-sm">
+        <div className="flex items-center gap-8">
+          <p className="text-3xl font-black text-neutral-900 shrink-0">Active Scan Session</p>
+
+          {/* Divider */}
+          <div className="w-px h-10 bg-neutral-200 shrink-0" />
+
+          {/* Session config inline */}
+          <div className="flex items-center gap-6">
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Harvest Date</label>
+              <DatePicker value={harvestDate} onChange={setHarvestDate} />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
+                Box Type
+                {!boxTypeId && (
+                  <span className="ml-2 text-[10px] font-bold text-amber-500 uppercase tracking-widest">
+                    Required
+                  </span>
+                )}
+              </label>
+              <select
+                value={boxTypeId ?? ''}
+                onChange={e => setBoxTypeId(Number(e.target.value))}
+                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium outline-none focus:border-primary transition-colors min-w-56
+                  ${!boxTypeId
+                    ? 'border-amber-300 bg-amber-50 text-neutral-500'
+                    : 'border-neutral-200 bg-neutral-50 text-neutral-800'
+                  }`}
+              >
+                <option value="" disabled>Select box type...</option>
+                {boxes.map(box => (
+                  <option key={box.box_id} value={box.box_id}>
+                    {box.name} — {box.net_weight_kg} kg net
+                  </option>
+                ))}
+              </select>
+            </div>
+
           </div>
         </div>
       </div>
@@ -306,7 +343,7 @@ export default function Scanning() {
           {/* Barcode input — grows to fill space */}
           <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col gap-4 flex-1">
 
-            <div className="flex-[2] relative">
+            <div className="flex-[2] relative border-2 border-neutral-200 rounded-2xl bg-neutral-50 focus-within:border-primary transition-colors">
               <input
                 ref={inputRef}
                 value={input}
@@ -314,7 +351,7 @@ export default function Scanning() {
                 onKeyDown={handleKeyDown}
                 placeholder="XX-XXXX-XXXX"
                 maxLength={12}
-                className="w-full h-full min-h-32 px-8 rounded-2xl border-2 border-neutral-200 bg-neutral-50 text-5xl font-mono tracking-[0.3em] outline-none focus:border-primary transition-colors text-center placeholder:text-neutral-200"
+                className="w-full h-full min-h-32 px-8 bg-transparent text-7xl font-mono tracking-[0.25em] outline-none text-center placeholder:text-neutral-200 text-neutral-800"
                 autoComplete="off"
                 autoFocus
               />
@@ -323,7 +360,7 @@ export default function Scanning() {
                   onClick={() => { setInput(''); inputRef.current?.focus() }}
                   className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500 transition-colors"
                 >
-                  <X size={22} />
+                  <X size={26} />
                 </button>
               )}
             </div>
@@ -340,38 +377,6 @@ export default function Scanning() {
             <p className="text-xs text-neutral-400 text-center shrink-0">
               Scanner auto-submits. Manual entry requires Enter or Add button
             </p>
-          </div>
-
-          {/* Session config */}
-          <div className="bg-white rounded-2xl shadow-md p-6 shrink-0">
-            <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4">Session Configuration</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Harvest Date</label>
-                <input
-                  type="date"
-                  value={harvestDate}
-                  onChange={e => setHarvestDate(e.target.value)}
-                  className="mt-2 w-full px-4 py-3 rounded-xl border border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Box Type</label>
-                <select
-                  value={boxTypeId ?? ''}
-                  onChange={e => setBoxTypeId(Number(e.target.value))}
-                  className={`mt-2 w-full px-4 py-3 rounded-xl border bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
-                    ${!boxTypeId ? 'text-neutral-400 border-neutral-200' : 'text-neutral-800 border-neutral-200'}`}
-                >
-                  <option value="" disabled>Select box type...</option>
-                  {boxes.map(box => (
-                    <option key={box.box_id} value={box.box_id}>
-                      {box.name} — {box.net_weight_kg} kg net
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
           </div>
 
           {/* Commit / Cancel */}
