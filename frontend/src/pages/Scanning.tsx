@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import { flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from '@tanstack/react-table'
 import type { ColumnDef } from '@tanstack/react-table'
 import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight } from 'lucide-react'
 import { checkBarcode, bulkScan, getEntries } from '../api/harvest'
@@ -54,6 +54,7 @@ export default function Scanning() {
   const [input, setInput]                 = useState('')
   const [errorPopup, setErrorPopup]       = useState<BarcodeCheckResponse | null>(null)
   const [isScanner, setIsScanner]         = useState(false)
+  const [globalFilter, setGlobalFilter]   = useState('')
 
   const inputRef      = useRef<HTMLInputElement>(null)
   const lastKeyTime   = useRef<number>(0)
@@ -65,6 +66,13 @@ export default function Scanning() {
     queryKey: ['harvest'],
     queryFn:  getEntries,
   })
+  const formatBarcodeFilter = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '').slice(0, 10)
+    const p1 = digits.slice(0, 2)
+    const p2 = digits.slice(2, 6)
+    const p3 = digits.slice(6, 10)
+    return [p1, p2, p3].filter(Boolean).join('-')
+  }
 
   // ── scanner detection ──────────────────────────────────────────────
   // Barcode scanners type very fast (< 30ms between keystrokes)
@@ -204,9 +212,12 @@ export default function Scanning() {
   ]
 
   const entryTable = useReactTable({
-    data:            entries,
-    columns:         entryColumns,
-    getCoreRowModel: getCoreRowModel(),
+    data:                 entries,
+    columns:              entryColumns,
+    state:                { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel:      getCoreRowModel(),
+    getFilteredRowModel:  getFilteredRowModel(),
   })
 
   // ── idle page ──────────────────────────────────────────────────────
@@ -239,6 +250,23 @@ export default function Scanning() {
             <div>
               <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
               <p className="text-sm text-neutral-400">{entries.length} total entries</p>
+            </div>
+            <div className="relative">
+              <input
+                value={globalFilter}
+                onChange={e => setGlobalFilter(formatBarcodeFilter(e.target.value))}
+                placeholder="XX-XXXX-XXXX"
+                maxLength={12}
+                className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider"
+              />
+              {globalFilter && (
+                <button
+                  onClick={() => setGlobalFilter('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
 
