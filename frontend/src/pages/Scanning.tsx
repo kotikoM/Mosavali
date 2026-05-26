@@ -11,7 +11,6 @@ import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import DatePicker from '../components/DatePicker'
 
-// ── types ──────────────────────────────────────────────────────────────
 type ScanStatus = 'idle' | 'valid' | 'error'
 
 interface QueueItem {
@@ -21,7 +20,6 @@ interface QueueItem {
   reason:  string | null
 }
 
-// ── helpers ────────────────────────────────────────────────────────────
 function formatBarcode(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 10)
   const p1 = digits.slice(0, 2)
@@ -40,32 +38,27 @@ const REASON_LABELS: Record<string, string> = {
   never_printed:   'This sticker was never printed',
 }
 
-// ── component ──────────────────────────────────────────────────────────
 export default function Scanning() {
   const queryClient                       = useQueryClient()
   const { toasts, addToast, removeToast } = useToast()
   const { playError }                     = useErrorSound()
 
-  // session state
   const [sessionActive, setSessionActive] = useState(false)
   const [harvestDate, setHarvestDate]     = useState(() => new Date().toISOString().split('T')[0])
   const [boxTypeId, setBoxTypeId]         = useState<number | null>(null)
   const [queue, setQueue]                 = useState<QueueItem[]>([])
   const [input, setInput]                 = useState('')
   const [errorPopup, setErrorPopup]       = useState<BarcodeCheckResponse | null>(null)
-  const [isScanner, setIsScanner]         = useState(false)
   const [globalFilter, setGlobalFilter]   = useState('')
 
-  const inputRef      = useRef<HTMLInputElement>(null)
-  const lastKeyTime   = useRef<number>(0)
-  const scannerBuffer = useRef<string>('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  // ── data fetching ──────────────────────────────────────────────────
-  const { data: boxes = [] }   = useQuery({ queryKey: ['boxes'],   queryFn: getBoxes })
+  const { data: boxes = [] } = useQuery({ queryKey: ['boxes'], queryFn: getBoxes })
   const { data: entries = [], isLoading: entriesLoading } = useQuery({
     queryKey: ['harvest'],
     queryFn:  getEntries,
   })
+
   const formatBarcodeFilter = (raw: string): string => {
     const digits = raw.replace(/\D/g, '').slice(0, 10)
     const p1 = digits.slice(0, 2)
@@ -74,20 +67,17 @@ export default function Scanning() {
     return [p1, p2, p3].filter(Boolean).join('-')
   }
 
-  // ── scanner detection ──────────────────────────────────────────────
-  // Barcode scanners type very fast (< 30ms between keystrokes)
-  // We detect this and auto-submit when Enter is received
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    const now = Date.now()
-    const delta = now - lastKeyTime.current
-    lastKeyTime.current = now
-
-    if (delta < 30) {
-      setIsScanner(true)
-    } else {
-      setIsScanner(false)
+  useEffect(() => {
+    if (sessionActive) {
+      setTimeout(() => inputRef.current?.focus(), 100)
     }
+  }, [sessionActive])
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(formatBarcode(e.target.value))
+  }
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       const formatted = formatBarcode(input.replace(/-/g, ''))
@@ -97,33 +87,9 @@ export default function Scanning() {
     }
   }, [input])
 
-  // auto-submit when scanner completes 10 digits fast
-  useEffect(() => {
-    const digits = input.replace(/-/g, '')
-    if (digits.length === 10 && isScanner) {
-      const formatted = formatBarcode(digits)
-      submitBarcode(formatted)
-    }
-  }, [input, isScanner])
-
-  // ── auto-focus input when session active ───────────────────────────
-  useEffect(() => {
-    if (sessionActive) {
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [sessionActive])
-
-  // ── barcode input formatting ───────────────────────────────────────
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatBarcode(e.target.value)
-    setInput(formatted)
-  }
-
-  // ── submit barcode ─────────────────────────────────────────────────
   const submitBarcode = useCallback(async (barcode: string) => {
     if (!barcode || !isComplete(barcode)) return
 
-    // prevent duplicates in queue
     if (queue.some(q => q.barcode === barcode)) {
       playError()
       setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scan_date: null })
@@ -154,7 +120,6 @@ export default function Scanning() {
     }
   }, [queue, playError])
 
-  // ── commit mutation ────────────────────────────────────────────────
   const commitMutation = useMutation({
     mutationFn: () => {
       if (!boxTypeId || !harvestDate) throw new Error('Missing fields')
@@ -181,12 +146,11 @@ export default function Scanning() {
 
   const validCount = queue.filter(q => q.status === 'valid').length
 
-  // ── harvest entries table columns ──────────────────────────────────
   const entryColumns: ColumnDef<HarvestEntry>[] = [
     {
       header: 'Barcode',
       id: 'barcode',
-      accessorFn: row => `${String(row.fruit_id).padStart(2,'0')}-${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
+      accessorFn: row => `${String(row.fruit_id).padStart(2,'0')}-${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'00')}`,
       cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
     },
     {
@@ -225,16 +189,13 @@ export default function Scanning() {
     return (
       <div className="flex flex-col gap-6">
 
-        {/* Header */}
         <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-800">
-            Scanning <span className="font-light text-neutral-400">Station</span>
-          </h1>
-          <p className="mt-2 text-sm text-neutral-500">
-              Scan harvest entries.
-           </p>
-         </div>
+          <div>
+            <h1 className="text-3xl font-bold text-neutral-800">
+              Scanning <span className="font-light text-neutral-400">Station</span>
+            </h1>
+            <p className="mt-2 text-sm text-neutral-500">Scan harvest entries.</p>
+          </div>
           <button
             onClick={() => setSessionActive(true)}
             className="flex items-center gap-3 w-fit px-6 py-3 bg-primary-700 text-white font-semibold rounded-xl hover:bg-primary transition-colors"
@@ -244,7 +205,6 @@ export default function Scanning() {
           </button>
         </div>
 
-        {/* Entries table */}
         <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
           <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
             <div>
@@ -320,35 +280,24 @@ export default function Scanning() {
       <div className="flex items-center justify-between px-8 py-5 bg-white border-b border-neutral-100 shadow-sm">
         <div className="flex items-center gap-8">
           <p className="text-3xl font-black text-neutral-900 shrink-0">Active Scan Session</p>
-
-          {/* Divider */}
           <div className="w-px h-10 bg-neutral-200 shrink-0" />
-
-          {/* Session config inline */}
           <div className="flex items-center gap-6">
-
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Harvest Date</label>
               <DatePicker value={harvestDate} onChange={setHarvestDate} />
             </div>
-
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
                 Box Type
                 {!boxTypeId && (
-                  <span className="ml-2 text-[10px] font-bold text-amber-500 uppercase tracking-widest">
-                    Required
-                  </span>
+                  <span className="ml-2 text-[10px] font-bold text-amber-500 uppercase tracking-widest">Required</span>
                 )}
               </label>
               <select
                 value={boxTypeId ?? ''}
                 onChange={e => setBoxTypeId(Number(e.target.value))}
                 className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium outline-none focus:border-primary transition-colors min-w-56
-                  ${!boxTypeId
-                    ? 'border-amber-300 bg-amber-50 text-neutral-500'
-                    : 'border-neutral-200 bg-neutral-50 text-neutral-800'
-                  }`}
+                  ${!boxTypeId ? 'border-amber-300 bg-amber-50 text-neutral-500' : 'border-neutral-200 bg-neutral-50 text-neutral-800'}`}
               >
                 <option value="" disabled>Select box type...</option>
                 {boxes.map(box => (
@@ -358,19 +307,16 @@ export default function Scanning() {
                 ))}
               </select>
             </div>
-
           </div>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left — main scan area */}
+        {/* Left */}
         <div className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
 
-          {/* Barcode input — grows to fill space */}
           <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col gap-4 flex-1">
-
             <div className="flex-[2] relative border-2 border-neutral-200 rounded-2xl bg-neutral-50 focus-within:border-primary transition-colors">
               <input
                 ref={inputRef}
@@ -403,19 +349,13 @@ export default function Scanning() {
             </button>
 
             <p className="text-xs text-neutral-400 text-center shrink-0">
-              Scanner auto-submits. Manual entry requires Enter or Add button
+              Scanner auto-submits. Manual entry requires Enter or Add button.
             </p>
           </div>
 
-          {/* Commit / Cancel */}
           <div className="flex gap-4 shrink-0">
             <button
-              onClick={() => {
-                setSessionActive(false)
-                setQueue([])
-                setInput('')
-                setBoxTypeId(null)
-              }}
+              onClick={() => { setSessionActive(false); setQueue([]); setInput(''); setBoxTypeId(null) }}
               className="flex-1 py-5 rounded-xl border-2 border-neutral-200 bg-white shadow-sm text-neutral-600 text-base font-semibold hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2"
             >
               <X size={18} strokeWidth={2.5} />
@@ -433,21 +373,18 @@ export default function Scanning() {
 
         </div>
 
-        {/* Right — counter + queue */}
+        {/* Right */}
         <div className="w-80 shrink-0 flex flex-col border-l border-neutral-200 bg-white shadow-[-4px_0_12px_rgba(0,0,0,0.04)]">
 
-          {/* Counter */}
           <div className="bg-primary-700 p-10 flex flex-col items-center justify-center">
             <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
             <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
           </div>
 
-          {/* Queue header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
             <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
           </div>
 
-          {/* Queue list */}
           <div className="flex-1 overflow-y-auto">
             {queue.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 gap-2">
@@ -456,17 +393,10 @@ export default function Scanning() {
               </div>
             ) : (
               <div className="flex flex-col">
-                {[...queue].reverse().map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className={`flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 transition-colors bg-neutral-50`}
-                  >
+                {[...queue].reverse().map(item => (
+                  <div key={item.id} className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 transition-colors bg-neutral-50">
                     <div className="flex items-center gap-3">
-                      <CheckCircle
-                        size={15}
-                        className={'text-neutral-300'}
-                        strokeWidth={2.5}
-                      />
+                      <CheckCircle size={15} className="text-neutral-300" strokeWidth={2.5} />
                       <span className="font-mono text-sm text-neutral-700">{item.barcode}</span>
                     </div>
                     <button
@@ -500,9 +430,7 @@ export default function Scanning() {
                 {errorPopup.reason ? REASON_LABELS[errorPopup.reason] ?? errorPopup.reason : 'Unknown error'}
               </p>
               {errorPopup.scan_date && (
-                <p className="text-sm text-neutral-400 mt-2">
-                  Previously scanned on {errorPopup.scan_date}
-                </p>
+                <p className="text-sm text-neutral-400 mt-2">Previously scanned on {errorPopup.scan_date}</p>
               )}
               <p className="font-mono text-sm text-neutral-300 mt-3">{errorPopup.barcode}</p>
             </div>
