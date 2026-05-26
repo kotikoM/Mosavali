@@ -14,6 +14,8 @@ import { getFruits } from '../api/fruits'
 import { createPrintBatch } from '../api/printBatches'
 import type { Picker } from '../api/pickers'
 import type { Fruit } from '../api/fruits'
+import PrintDialog from '../components/PrintDialog'
+import type { PrintBatch } from '../api/printBatches'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import axios from 'axios'
@@ -26,15 +28,17 @@ interface QueueEntry {
 }
 
 export default function Printing() {
-  const queryClient                         = useQueryClient()
-  const { toasts, addToast, removeToast }   = useToast()
+  const queryClient                           = useQueryClient()
+  const { toasts, addToast, removeToast }     = useToast()
 
-  const [sorting, setSorting]               = useState<SortingState>([])
-  const [columnFilters, setColumnFilters]   = useState<ColumnFiltersState>([])
+  const [sorting, setSorting]                 = useState<SortingState>([])
+  const [columnFilters, setColumnFilters]     = useState<ColumnFiltersState>([])
   const [selectedPickers, setSelectedPickers] = useState<Set<number>>(new Set())
-  const [selectedFruit, setSelectedFruit]   = useState<Fruit | null>(null)
-  const [quantity, setQuantity]             = useState<number>(15)
-  const [queue, setQueue]                   = useState<QueueEntry[]>([])
+  const [selectedFruit, setSelectedFruit]     = useState<Fruit | null>(null)
+  const [quantity, setQuantity]               = useState<number>(15)
+  const [queue, setQueue]                     = useState<QueueEntry[]>([])
+  const [printDialogOpen, setPrintDialogOpen] = useState(false)
+const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
 
   const { data: pickers = [], isLoading: pickersLoading } = useQuery({
     queryKey: ['pickers'],
@@ -54,10 +58,12 @@ export default function Printing() {
         quantity:  q.quantity,
       }))
     }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['print-batches'] })
+      setPrintBatches(data)
+      setPrintDialogOpen(true)
       setQueue([])
-      addToast(`${queue.length} batch(es) sent to print successfully`, 'success')
+      addToast(`${data.length} batch(es) created`, 'success')
     },
     onError: (error) => {
       if (axios.isAxiosError(error)) {
@@ -109,7 +115,7 @@ export default function Printing() {
     }
 
     setSelectedPickers(new Set())
-    setQuantity(50)
+    setQuantity(15)
   }
 
   const formatNationalId = (id: string) =>
@@ -450,6 +456,12 @@ export default function Printing() {
       </div>
 
       <Toast toasts={toasts} onRemove={removeToast} />
+
+      <PrintDialog
+        open={printDialogOpen}
+        onClose={() => setPrintDialogOpen(false)}
+        batches={printBatches}
+      />
     </div>
   )
 }

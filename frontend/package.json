@@ -14,6 +14,8 @@
     "@tanstack/react-table": "^8.21.3",
     "axios": "^1.16.1",
     "date-fns": "^4.3.0",
+    "jsbarcode": "^3.12.3",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
