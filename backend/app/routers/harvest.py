@@ -184,3 +184,38 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
         "total_scanned": total_scanned,
         "total_kg":      round(total_kg, 3),
     }
+
+@router.get("/picker-stats")
+async def get_picker_stats(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(
+            Picker.picker_id,
+            Picker.first_name,
+            Picker.last_name,
+            Picker.origin_place,
+            func.count(HarvestEntry.box_number).label("total_boxes"),
+            func.sum(Box.net_weight_kg).label("total_kg"),
+        )
+        .join(HarvestEntry, HarvestEntry.picker_id == Picker.picker_id, isouter=True)
+        .join(Box, Box.box_id == HarvestEntry.box_type_id, isouter=True)
+        .group_by(
+            Picker.picker_id,
+            Picker.first_name,
+            Picker.last_name,
+            Picker.origin_place,
+        )
+        .order_by(func.count(HarvestEntry.box_number).desc())
+    )
+    rows = result.all()
+
+    return [
+        {
+            "picker_id":   row.picker_id,
+            "first_name":  row.first_name,
+            "last_name":   row.last_name,
+            "origin_place": row.origin_place,
+            "total_boxes": row.total_boxes or 0,
+            "total_kg":    round(float(row.total_kg or 0), 3),
+        }
+        for row in rows
+    ]
