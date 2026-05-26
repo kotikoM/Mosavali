@@ -41,9 +41,16 @@ export interface DailyStatsResponse {
   total: number
 }
 
+export interface HarvestOverview {
+  total_pickers: number
+  total_scanned: number
+  total_kg:      number
+}
+
 export const checkBarcode  = (barcode: string)       => api.post<BarcodeCheckResponse>('/harvest/check', { barcode }).then(r => r.data)
 export const bulkScan      = (data: BulkScanRequest) => api.post<BulkScanResult>('/harvest/scan', data).then(r => r.data)
 export const getEntries    = ()                       => api.get<HarvestEntry[]>('/harvest/').then(r => r.data)
+export const getHarvestOverview = () => api.get<HarvestOverview>('/harvest/overview').then(r => r.data)
 export const getDailyStats = (from?: string, to?: string) => {
   const params = new URLSearchParams()
   if (from) params.append('from_date', from)
