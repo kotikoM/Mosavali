@@ -1,15 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
-import { getDailyStats, getHarvestOverview } from '../api/harvest'
-import { CalendarDays, ScanBarcode, Users, Weight } from 'lucide-react'
+import { getDailyStats, getHarvestOverview, getPickerStats } from '../api/harvest'
+import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown } from 'lucide-react'
 
-// ── helpers ────────────────────────────────────────────────────────────
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
-const TODAY = new Date()
-
-// ── heatmap cell ───────────────────────────────────────────────────────
 function HeatmapCell({ count, max }: { count: number; max: number }) {
   const intensity = max > 0 ? count / max : 0
   const bg =
@@ -26,8 +22,20 @@ function HeatmapCell({ count, max }: { count: number; max: number }) {
   )
 }
 
-// ── component ──────────────────────────────────────────────────────────
 export default function Dashboard() {
+
+  const [pickerSearch, setPickerSearch]   = useState('')
+  const [sortBy, setSortBy]               = useState<'total_boxes' | 'total_kg'>('total_boxes')
+  const [sortDir, setSortDir]             = useState<'desc' | 'asc'>('desc')
+
+  const handleSort = (col: 'total_boxes' | 'total_kg') => {
+    if (sortBy === col) {
+      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    } else {
+      setSortBy(col)
+      setSortDir('desc')
+    }
+  }
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['harvest-overview'],
@@ -39,19 +47,30 @@ export default function Dashboard() {
     queryFn:  () => getDailyStats(),
   })
 
-  // ── heatmap range ──────────────────────────────────────────────────
+  const { data: pickerStats = [], isLoading: pickerStatsLoading } = useQuery({
+    queryKey: ['picker-stats'],
+    queryFn:  getPickerStats,
+  })
+
+  const filteredPickers = useMemo(() => {
+    const filtered = !pickerSearch.trim()
+      ? [...pickerStats]
+      : pickerStats.filter(p =>
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(pickerSearch.toLowerCase())
+        )
+    return filtered.sort((a, b) =>
+      sortDir === 'desc' ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
+    )
+  }, [pickerStats, pickerSearch, sortBy, sortDir])
+
   const heatmapRange = useMemo(() => {
     if (!allStatsData?.stats.length) return null
-    const dates   = allStatsData.stats.map(s => parseISO(s.harvest_date))
+    const dates    = allStatsData.stats.map(s => parseISO(s.harvest_date))
     const earliest = new Date(Math.min(...dates.map(d => d.getTime())))
     const latest   = new Date(Math.max(...dates.map(d => d.getTime())))
-    return {
-      start: startOfMonth(earliest),
-      end:   endOfMonth(latest),
-    }
+    return { start: startOfMonth(earliest), end: endOfMonth(latest) }
   }, [allStatsData])
 
-  // ── heatmap data ───────────────────────────────────────────────────
   const heatmapData = useMemo(() => {
     if (!allStatsData || !heatmapRange) return []
     return eachDayOfInterval(heatmapRange).map(day => {
@@ -73,7 +92,6 @@ export default function Dashboard() {
     [heatmapData]
   )
 
-  // group heatmap by month
   const heatmapByMonth = useMemo(() => {
     const months: { label: string; days: typeof heatmapData }[] = []
     heatmapData.forEach(day => {
@@ -87,6 +105,11 @@ export default function Dashboard() {
     return months
   }, [heatmapData])
 
+  const SortIcon = ({ col }: { col: 'total_boxes' | 'total_kg' }) => {
+    if (sortBy !== col) return <span className="text-neutral-300 text-xs">↕</span>
+    return sortDir === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />
+  }
+
   return (
     <div className="flex flex-col gap-8">
 
@@ -99,7 +122,6 @@ export default function Dashboard() {
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
 
-        {/* Total Pickers */}
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
             <Users size={30} className="text-primary-700" strokeWidth={2} />
@@ -112,7 +134,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Total Scanned */}
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
             <ScanBarcode size={30} className="text-primary-700" strokeWidth={2} />
@@ -125,7 +146,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Total KG */}
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
             <Weight size={30} className="text-primary-700" strokeWidth={2} />
@@ -142,19 +162,14 @@ export default function Dashboard() {
 
       {/* Heatmap */}
       <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6">
-
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <CalendarDays size={20} className="text-primary-700" strokeWidth={2.5} />
-          <div>
-            <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
-            <p className="text-sm text-neutral-400">
-              {heatmapRange
-                ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
-                : 'All time — boxes scanned per day'
-              }
-            </p>
-          </div>
+        <div className="mb-6">
+          <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
+          <p className="text-sm text-neutral-400">
+            {heatmapRange
+              ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
+              : 'All time — boxes scanned per day'
+            }
+          </p>
         </div>
 
         {heatmapLoading ? (
@@ -185,8 +200,6 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-
-            {/* Legend */}
             <div className="flex items-center gap-2 mt-6">
               <span className="text-xs text-neutral-400">Less</span>
               {['bg-neutral-100', 'bg-primary-100', 'bg-primary-200', 'bg-primary-400', 'bg-primary-700'].map(c => (
@@ -195,6 +208,116 @@ export default function Dashboard() {
               <span className="text-xs text-neutral-400">More</span>
             </div>
           </>
+        )}
+      </div>
+
+      {/* Picker stats table */}
+      <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
+
+        <div className="flex items-center justify-between px-6 py-5 border-b-2 border-neutral-100">
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-xl font-bold text-neutral-900">Picker Harvest</p>
+              <p className="text-sm text-neutral-400">Total harvest by picker — all time</p>
+            </div>
+          </div>
+          <div className="relative">
+            <input
+              value={pickerSearch}
+              onChange={e => setPickerSearch(e.target.value)}
+              placeholder="Search by name..."
+              className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+            />
+            {pickerSearch && (
+              <button
+                onClick={() => setPickerSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {pickerStatsLoading ? (
+          <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
+                  ID
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
+                  Picker
+                </th>
+
+                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                  onClick={() => handleSort('total_boxes')}
+                >
+                  <div className="flex items-center gap-1">
+                    Boxes
+                    <SortIcon col="total_boxes" />
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                  onClick={() => handleSort('total_kg')}
+                >
+                  <div className="flex items-center gap-1">
+                    Total kg
+                    <SortIcon col="total_kg" />
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
+                  Origin
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPickers.map((p, idx) => (
+                <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+
+                  <td className="px-6 py-4">
+                    <span className="font-mono text-sm text-neutral-400">
+                      P-{String(p.picker_id).padStart(3, '0')}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-neutral-800">
+                        {p.first_name} {p.last_name}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
+                      {p.total_boxes.toLocaleString()}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>
+                      {p.total_kg.toLocaleString()} kg
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span>
+                  </td>
+
+                </tr>
+              ))}
+              {filteredPickers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">
+                    {pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         )}
       </div>
 
