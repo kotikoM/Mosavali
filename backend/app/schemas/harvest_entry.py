@@ -34,3 +34,13 @@ class BulkScanResult(BaseModel):
     success:  bool
     accepted: list[HarvestEntryResponse]
     problems: list[BarcodeCheckResponse]
+
+
+class DailyStatEntry(BaseModel):
+    harvest_date: date
+    box_type_id:  int
+    count:        int
+
+class DailyStatsResponse(BaseModel):
+    stats: list[DailyStatEntry]
+    total: int

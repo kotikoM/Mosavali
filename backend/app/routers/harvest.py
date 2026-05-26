@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import date
 from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
 from app.entities.print_batch import PrintBatch
@@ -9,7 +11,9 @@ from app.schemas.harvest_entry import (
     BarcodeCheckResponse,
     BulkScanRequest,
     BulkScanResult,
-    HarvestEntryResponse
+    HarvestEntryResponse,
+    DailyStatEntry,
+    DailyStatsResponse
 )
 
 router = APIRouter(prefix="/harvest", tags=["harvest"])
@@ -118,3 +122,39 @@ async def get_all_entries(db: AsyncSession = Depends(get_db)):
         select(HarvestEntry).order_by(HarvestEntry.scan_date.desc())
     )
     return result.scalars().all()
+
+
+@router.get("/stats", response_model=DailyStatsResponse)
+async def get_daily_stats(
+    from_date: date | None = None,
+    to_date:   date | None = None,
+    db: AsyncSession = Depends(get_db)
+):
+    query = (
+        select(
+            HarvestEntry.harvest_date,
+            HarvestEntry.box_type_id,
+            func.count().label("count")
+        )
+        .group_by(HarvestEntry.harvest_date, HarvestEntry.box_type_id)
+        .order_by(HarvestEntry.harvest_date)
+    )
+
+    if from_date:
+        query = query.where(HarvestEntry.harvest_date >= from_date)
+    if to_date:
+        query = query.where(HarvestEntry.harvest_date <= to_date)
+
+    result = await db.execute(query)
+    rows   = result.all()
+
+    stats = [
+        DailyStatEntry(
+            harvest_date=row.harvest_date,
+            box_type_id=row.box_type_id,
+            count=row.count
+        )
+        for row in rows
+    ]
+
+    return DailyStatsResponse(stats=stats, total=sum(s.count for s in stats))
