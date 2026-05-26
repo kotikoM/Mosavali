@@ -234,12 +234,12 @@ export default function Scanning() {
         </div>
 
         {/* Entries table */}
-        <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-5">
-          <div>
-            <p className="text-lg font-semibold text-neutral-900">All Harvest Entries</p>
-            <p className="text-sm text-neutral-400">{entries.length} total entries</p>
-          </div>
+        <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
+            <div>
+              <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
+              <p className="text-sm text-neutral-400">{entries.length} total entries</p>
+            </div>
           </div>
 
           {entriesLoading ? (
@@ -248,9 +248,9 @@ export default function Scanning() {
             <table className="w-full">
               <thead>
                 {entryTable.getHeaderGroups().map(hg => (
-                  <tr key={hg.id} className="border-b border-neutral-100 bg-neutral-50">
+                  <tr key={hg.id} className="border-b-2 border-neutral-100 bg-neutral-50">
                     {hg.headers.map(h => (
-                      <th key={h.id} className="px-6 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest">
+                      <th key={h.id} className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
                         {flexRender(h.column.columnDef.header, h.getContext())}
                       </th>
                     ))}
@@ -259,7 +259,7 @@ export default function Scanning() {
               </thead>
               <tbody>
                 {entryTable.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
+                  <tr key={row.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                     {row.getVisibleCells().map(cell => (
                       <td key={cell.id} className="px-6 py-4">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

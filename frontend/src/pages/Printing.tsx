@@ -221,12 +221,12 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
       <div className="flex gap-6 items-start">
 
         {/* Left — picker table */}
-        <div className="flex-1 overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm">
+        <div className="flex-1 overflow-hidden rounded-[2rem] border-2 border-neutral-200 bg-white shadow-lg">
 
           {/* Toolbar */}
-          <div className="flex items-start justify-between border-b border-neutral-100 px-6 py-5">
+          <div className="flex items-start justify-between border-b-2 border-neutral-100 px-6 py-5">
             <div>
-              <p className="text-lg font-semibold text-neutral-900">Select Pickers</p>
+              <p className="text-xl font-bold text-neutral-900">Select Pickers</p>
               <p className="text-sm text-neutral-400">
                 {pickers.length} registered
                 {selectedPickers.size > 0 && (
@@ -245,30 +245,24 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
             <table className="w-full">
               <thead>
                 {table.getHeaderGroups().map(hg => (
-                  <tr key={hg.id} className="border-b border-neutral-100 bg-neutral-50">
+                  <tr key={hg.id} className="border-b-2 border-neutral-100 bg-neutral-50">
                     {hg.headers.map(header => (
-                      <th
-                        key={header.id}
-                        className="px-6 py-3 text-left"
-                      >
-                        {/* Column label + sort */}
+                      <th key={header.id} className="px-6 py-4 text-left">
                         <div
                           onClick={header.column.getToggleSortingHandler()}
-                          className="flex items-center gap-1 text-xs font-bold text-neutral-400 uppercase tracking-widest cursor-pointer select-none mb-2"
+                          className="flex items-center gap-1 text-xs font-bold text-neutral-500 uppercase tracking-widest cursor-pointer select-none mb-2"
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {header.column.getIsSorted() === 'asc'  && <ChevronUp size={12} />}
                           {header.column.getIsSorted() === 'desc' && <ChevronDown size={12} />}
                         </div>
-
-                        {/* Per-column filter */}
                         {header.column.getCanFilter() && (
                           <div className="relative">
                             <input
                               value={(header.column.getFilterValue() as string) ?? ''}
                               onChange={e => header.column.setFilterValue(e.target.value)}
-                              placeholder={`Filter...`}
-                              className="w-full px-3 py-1.5 pr-6 text-xs rounded-lg border-2 border-neutral-200 bg-white outline-none focus:border-primary transition-colors placeholder:text-neutral-300 font-normal text-neutral-700"
+                              placeholder="Filter..."
+                              className="w-full px-3 py-2 pr-6 text-sm rounded-lg border-2 border-neutral-200 bg-white outline-none focus:border-primary transition-colors placeholder:text-neutral-300 font-normal text-neutral-700"
                             />
                             {(header.column.getFilterValue() as string) && (
                               <button
@@ -292,14 +286,14 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
                     <tr
                       key={row.id}
                       onClick={() => togglePicker(row.original.picker_id)}
-                      className={`border-b border-neutral-50 cursor-pointer transition-all
+                      className={`border-b border-neutral-100 cursor-pointer transition-all
                         ${isSelected
-                          ? 'bg-primary-50 border-l-[3px] border-l-primary-700'
-                          : 'hover:bg-neutral-50 border-l-[3px] border-l-transparent'
+                          ? 'bg-primary-50 border-l-4 border-l-primary-700'
+                          : 'hover:bg-neutral-50 border-l-4 border-l-transparent'
                         }`}
                     >
                       {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className="px-6 py-4">
+                        <td key={cell.id} className="px-6 py-4 text-base">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -322,17 +316,16 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
         <div className="w-80 shrink-0 flex flex-col gap-4">
 
           {/* Add to queue form */}
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm p-6 flex flex-col gap-4">
-            <p className="text-xs font-black text-neutral-400 uppercase tracking-widest">Add to Queue</p>
+          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col gap-4">
+            <p className="text-sm font-black text-neutral-500 uppercase tracking-widest">Add to Queue</p>
 
-            {/* Selected pickers summary */}
             <div>
-              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
                 Selected Pickers
               </label>
-              <div className={`mt-1.5 px-4 py-3 rounded-xl border text-sm transition-colors
+              <div className={`mt-1.5 px-4 py-3 rounded-xl border-2 text-sm transition-colors
                 ${selectedPickers.size > 0
-                  ? 'border-primary-200 bg-primary-50 text-primary-800 font-semibold'
+                  ? 'border-primary-300 bg-primary-50 text-primary-800 font-semibold'
                   : 'border-neutral-200 bg-neutral-50 text-neutral-400 italic'
                 }`}
               >
@@ -343,16 +336,15 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
               </div>
             </div>
 
-            {/* Fruit selector */}
             <div>
-              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">Fruit</label>
+              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">Fruit</label>
               <select
                 value={selectedFruit?.fruit_id ?? ''}
                 onChange={e => {
                   const fruit = fruits.find(f => f.fruit_id === Number(e.target.value))
                   setSelectedFruit(fruit ?? null)
                 }}
-                className={`mt-1.5 w-full px-4 py-3 rounded-xl border bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
+                className={`mt-1.5 w-full px-4 py-3 rounded-xl border-2 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
                   ${!selectedFruit ? 'text-neutral-400 border-neutral-200' : 'text-neutral-800 border-neutral-200'}`}
               >
                 <option value="" disabled>Select fruit...</option>
@@ -364,9 +356,8 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
               </select>
             </div>
 
-            {/* Quantity */}
             <div>
-              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wide">
+              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
                 Stickers per Picker
               </label>
               <input
@@ -375,11 +366,11 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
                 max={999}
                 value={quantity}
                 onChange={e => setQuantity(Number(e.target.value))}
-                className="mt-1.5 w-full px-4 py-3 rounded-xl border border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
+                className="mt-1.5 w-full px-4 py-3 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
               />
               {selectedPickers.size > 1 && (
-                <p className="text-xs text-neutral-400 mt-1">
-                  {quantity} × {selectedPickers.size} pickers = <span className="font-bold text-neutral-600">{quantity * selectedPickers.size}</span> total stickers
+                <p className="text-xs text-neutral-400 mt-1.5">
+                  {quantity} × {selectedPickers.size} pickers = <span className="font-bold text-neutral-700">{quantity * selectedPickers.size}</span> total stickers
                 </p>
               )}
             </div>
@@ -387,7 +378,7 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
             <button
               onClick={handleAddToQueue}
               disabled={selectedPickers.size === 0 || !selectedFruit || quantity < 1}
-              className="w-full py-3 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary transition-colors disabled:opacity-30 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary transition-colors disabled:opacity-30 flex items-center justify-center gap-2"
             >
               <Plus size={16} strokeWidth={2.5} />
               Add {selectedPickers.size > 1 ? `${selectedPickers.size} Pickers` : 'to Queue'}
@@ -395,11 +386,11 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
           </div>
 
           {/* Queue */}
-          <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-              <p className="text-xs font-black text-neutral-400 uppercase tracking-widest">Print Queue</p>
+          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b-2 border-neutral-100">
+              <p className="text-sm font-black text-neutral-500 uppercase tracking-widest">Print Queue</p>
               {queue.length > 0 && (
-                <span className="text-xs font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-full border border-primary-200">
                   {queue.length} batch{queue.length > 1 ? 'es' : ''}
                 </span>
               )}
@@ -414,7 +405,7 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
               <>
                 <div className="flex flex-col max-h-72 overflow-y-auto">
                   {queue.map(item => (
-                    <div key={item.id} className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
+                    <div key={item.id} className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-semibold text-neutral-800">
                           {item.picker.first_name} {item.picker.last_name}
@@ -433,11 +424,10 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
                   ))}
                 </div>
 
-                {/* Footer */}
-                <div className="px-5 py-4 bg-neutral-50 flex flex-col gap-3 border-t border-neutral-100">
+                <div className="px-5 py-4 bg-neutral-50 flex flex-col gap-3 border-t-2 border-neutral-100">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-500">Total stickers</span>
-                    <span className="text-xl font-black text-neutral-800">{totalStickers}</span>
+                    <span className="text-sm font-medium text-neutral-500">Total stickers</span>
+                    <span className="text-2xl font-black text-neutral-800">{totalStickers}</span>
                   </div>
                   <button
                     onClick={() => printMutation.mutate()}

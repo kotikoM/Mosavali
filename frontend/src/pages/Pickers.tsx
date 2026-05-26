@@ -177,27 +177,21 @@ export default function Pickers() {
         </button>
       </div>
 
-      {/* Table card */}
-      <div className="overflow-hidden rounded-[2rem] border border-neutral-200 bg-white shadow-sm">
+{/* Table card */}
+      <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between border-b border-neutral-100 px-6 py-5">
+        <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
           <div>
-              <p className="text-lg font-semibold text-neutral-900">
-                Pickers Catalogue
-              </p>
-
-              <p className="text-sm text-neutral-400">
-                {pickers.length} registered
-              </p>
-            </div>
-
-            <input
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
-              placeholder="Search pickers..."
-              className="w-64 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
-            />
+            <p className="text-xl font-bold text-neutral-900">Pickers Catalogue</p>
+            <p className="text-sm text-neutral-400">{pickers.length} registered</p>
+          </div>
+          <input
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            placeholder="Search pickers..."
+            className="w-64 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+          />
         </div>
 
         {/* Table */}
@@ -207,12 +201,12 @@ export default function Pickers() {
           <table className="w-full">
             <thead>
               {table.getHeaderGroups().map(hg => (
-                <tr key={hg.id} className="border-b border-neutral-100 bg-neutral-50">
+                <tr key={hg.id} className="border-b-2 border-neutral-100 bg-neutral-50">
                   {hg.headers.map(header => (
                     <th
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      className="px-6 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest cursor-pointer select-none"
+                      className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest cursor-pointer select-none"
                     >
                       <div className="flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
@@ -226,7 +220,7 @@ export default function Pickers() {
             </thead>
             <tbody>
               {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="border-b border-neutral-50 hover:bg-neutral-100 transition-colors">
+                <tr key={row.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id} className="px-6 py-4">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
