@@ -6,6 +6,8 @@ from datetime import date
 from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
 from app.entities.print_batch import PrintBatch
+from app.entities.picker import Picker
+from app.entities.box import Box
 from app.schemas.harvest_entry import (
     BarcodeCheckRequest,
     BarcodeCheckResponse,
@@ -158,3 +160,27 @@ async def get_daily_stats(
     ]
 
     return DailyStatsResponse(stats=stats, total=sum(s.count for s in stats))
+
+
+@router.get("/overview")
+async def get_overview(db: AsyncSession = Depends(get_db)):
+    # total pickers
+    picker_result = await db.execute(select(func.count()).select_from(Picker))
+    total_pickers = picker_result.scalar() or 0
+
+    # total boxes scanned
+    scan_result = await db.execute(select(func.count()).select_from(HarvestEntry))
+    total_scanned = scan_result.scalar() or 0
+
+    # total kg — join harvest_entry with box to get net_weight_kg per entry
+    kg_result = await db.execute(
+        select(func.sum(Box.net_weight_kg))
+        .join(HarvestEntry, HarvestEntry.box_type_id == Box.box_id)
+    )
+    total_kg = float(kg_result.scalar() or 0)
+
+    return {
+        "total_pickers": total_pickers,
+        "total_scanned": total_scanned,
+        "total_kg":      round(total_kg, 3),
+    }
