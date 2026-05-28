@@ -4,7 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Scanning from './pages/Scanning'
 import Printing from './pages/Printing'
 import Pickers from './pages/Pickers'
-import Fruits from './pages/Fruits'
+import Fields from './pages/Fields'
 import BoxTypes from './pages/BoxTypes'
 
 export default function App() {
@@ -17,7 +17,7 @@ export default function App() {
             <Route path="scanning"  element={<Scanning />} />
             <Route path="printing"  element={<Printing />} />
             <Route path="pickers"   element={<Pickers />} />
-            <Route path="fruits"    element={<Fruits />} />
+            <Route path="fields"    element={<Fields />} />
             <Route path="box-types" element={<BoxTypes />} />
           </Route>
         </Routes>
