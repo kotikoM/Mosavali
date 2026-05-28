@@ -25,6 +25,7 @@ class BarcodeCheckResponse(BaseModel):
 
 
 class BulkScanRequest(BaseModel):
+    field_id:     int
     box_type_id:  int
     harvest_date: date
     barcodes:     list[str]
