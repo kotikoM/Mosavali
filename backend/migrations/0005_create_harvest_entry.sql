@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS harvest_entry (
-    fruit_id      INTEGER NOT NULL REFERENCES fruit(fruit_id),
+    field_id      INTEGER NOT NULL REFERENCES field(field_id),
     picker_id     INTEGER NOT NULL REFERENCES picker(picker_id),
     box_number    INTEGER NOT NULL,
     box_type_id   INTEGER NOT NULL REFERENCES box(box_id),

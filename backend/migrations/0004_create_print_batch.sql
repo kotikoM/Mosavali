@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS print_batch (
     batch_id        SERIAL PRIMARY KEY,
-    fruit_id        INTEGER NOT NULL REFERENCES fruit(fruit_id),
     picker_id       INTEGER NOT NULL REFERENCES picker(picker_id),
     box_number_from INTEGER NOT NULL,
     box_number_to   INTEGER NOT NULL,
