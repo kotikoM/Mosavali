@@ -329,7 +329,6 @@ export default function Scanning() {
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
           <div className="px-6 py-5 border-b-2 border-neutral-100 flex items-center gap-6">
             <div className="flex items-center gap-3 shrink-0">
-              <BarChart2 size={20} className="text-primary-700" strokeWidth={2.5} />
               <div>
                 <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
                 <p className="text-sm text-neutral-400">Boxes scanned per day by box type</p>
