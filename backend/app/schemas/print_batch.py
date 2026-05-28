@@ -3,7 +3,6 @@ from datetime import datetime
 
 
 class PrintBatchCreate(BaseModel):
-    fruit_id:  int
     picker_id: int
     quantity:  int
 
@@ -17,7 +16,6 @@ class PrintBatchCreate(BaseModel):
 
 class PrintBatchResponse(BaseModel):
     batch_id:        int
-    fruit_id:        int
     picker_id:       int
     box_number_from: int
     box_number_to:   int
@@ -28,7 +26,6 @@ class PrintBatchResponse(BaseModel):
 
 
 class PrintQueueItem(BaseModel):
-    fruit_id:  int
     picker_id: int
     quantity:  int
 

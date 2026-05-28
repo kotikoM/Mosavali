@@ -8,7 +8,7 @@ from app.database import Base
 class HarvestEntry(Base):
     __tablename__ = "harvest_entry"
 
-    fruit_id:     Mapped[int]      = mapped_column(Integer, ForeignKey("fruit.fruit_id"), nullable=False)
+    field_id:     Mapped[int]      = mapped_column(Integer, ForeignKey("field.field_id"), nullable=False)
     picker_id:    Mapped[int]      = mapped_column(Integer, ForeignKey("picker.picker_id"), primary_key=True)
     box_number:   Mapped[int]      = mapped_column(Integer, primary_key=True)
     box_type_id:  Mapped[int]      = mapped_column(Integer, ForeignKey("box.box_id"), nullable=False)

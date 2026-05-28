@@ -9,7 +9,6 @@ class PrintBatch(Base):
     __tablename__ = "print_batch"
 
     batch_id:        Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
-    fruit_id:        Mapped[int]      = mapped_column(Integer, ForeignKey("fruit.fruit_id"), nullable=False)
     picker_id:       Mapped[int]      = mapped_column(Integer, ForeignKey("picker.picker_id"), nullable=False)
     box_number_from: Mapped[int]      = mapped_column(Integer, nullable=False)
     box_number_to:   Mapped[int]      = mapped_column(Integer, nullable=False)

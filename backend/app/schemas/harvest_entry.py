@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 
 class HarvestEntryResponse(BaseModel):
-    fruit_id:     int
+    field_id:     int
     picker_id:    int
     box_number:   int
     box_type_id:  int
