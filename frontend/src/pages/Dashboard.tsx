@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
-import { getDailyStats, getHarvestOverview, getPickerStats } from '../api/harvest'
-import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns'
+import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats } from '../api/harvest'
+import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
+import DatePicker from '../components/DatePicker'
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
@@ -24,18 +25,13 @@ function HeatmapCell({ count, max }: { count: number; max: number }) {
 
 export default function Dashboard() {
 
-  const [pickerSearch, setPickerSearch]   = useState('')
-  const [sortBy, setSortBy]               = useState<'total_boxes' | 'total_kg'>('total_boxes')
-  const [sortDir, setSortDir]             = useState<'desc' | 'asc'>('desc')
-
-  const handleSort = (col: 'total_boxes' | 'total_kg') => {
-    if (sortBy === col) {
-      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    } else {
-      setSortBy(col)
-      setSortDir('desc')
-    }
-  }
+  const [pickerSearch, setPickerSearch]     = useState('')
+  const [sortBy, setSortBy]                 = useState<'total_boxes' | 'total_kg'>('total_boxes')
+  const [sortDir, setSortDir]               = useState<'desc' | 'asc'>('desc')
+  const [dailyFrom, setDailyFrom]           = useState(fmt(subDays(new Date(), 13)))
+  const [dailyTo, setDailyTo]               = useState(fmt(new Date()))
+  const [dailyMaximized, setDailyMaximized] = useState(false)
+  const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['harvest-overview'],
@@ -51,6 +47,25 @@ export default function Dashboard() {
     queryKey: ['picker-stats'],
     queryFn:  getPickerStats,
   })
+
+  const { data: pickerDailyStats = [], isLoading: dailyLoading } = useQuery({
+    queryKey: ['picker-box-stats', dailyFrom, dailyTo],
+    queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
+  })
+
+  const dailyColumns = useMemo(() => {
+    const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
+    return days.map(d => fmt(d))
+  }, [dailyFrom, dailyTo])
+
+  const handleSort = (col: 'total_boxes' | 'total_kg') => {
+    if (sortBy === col) {
+      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    } else {
+      setSortBy(col)
+      setSortDir('desc')
+    }
+  }
 
   const filteredPickers = useMemo(() => {
     const filtered = !pickerSearch.trim()
@@ -213,13 +228,10 @@ export default function Dashboard() {
 
       {/* Picker stats table */}
       <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
-
         <div className="flex items-center justify-between px-6 py-5 border-b-2 border-neutral-100">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-xl font-bold text-neutral-900">Picker Harvest</p>
-              <p className="text-sm text-neutral-400">Total harvest by picker — all time</p>
-            </div>
+          <div>
+            <p className="text-xl font-bold text-neutral-900">Picker Harvest</p>
+            <p className="text-sm text-neutral-400">Total harvest by picker — all time</p>
           </div>
           <div className="relative">
             <input
@@ -245,68 +257,53 @@ export default function Dashboard() {
           <table className="w-full">
             <thead>
               <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                  ID
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                  Picker
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">ID</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Picker</th>
+                <th
+                  className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
                   onClick={() => handleSort('total_boxes')}
                 >
                   <div className="flex items-center gap-1">
-                    Boxes
-                    <SortIcon col="total_boxes" />
+                    Boxes <SortIcon col="total_boxes" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                <th
+                  className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
                   onClick={() => handleSort('total_kg')}
                 >
                   <div className="flex items-center gap-1">
-                    Total kg
-                    <SortIcon col="total_kg" />
+                    Total kg <SortIcon col="total_kg" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                  Origin
-                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Origin</th>
               </tr>
             </thead>
             <tbody>
               {filteredPickers.map((p, idx) => (
                 <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
-
                   <td className="px-6 py-4">
                     <span className="font-mono text-sm text-neutral-400">
                       P-{String(p.picker_id).padStart(3, '0')}
                     </span>
                   </td>
-
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-neutral-800">
-                        {p.first_name} {p.last_name}
-                      </span>
+                      <span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span>
                     </div>
                   </td>
-
                   <td className="px-6 py-4">
                     <span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
                       {p.total_boxes.toLocaleString()}
                     </span>
                   </td>
-
                   <td className="px-6 py-4">
                     <span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>
                       {p.total_kg.toLocaleString()} kg
                     </span>
                   </td>
-
                   <td className="px-6 py-4">
                     <span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span>
                   </td>
-
                 </tr>
               ))}
               {filteredPickers.length === 0 && (
@@ -318,6 +315,142 @@ export default function Dashboard() {
               )}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Daily harvest table */}
+      <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden
+        ${dailyMaximized ? 'fixed inset-4 z-50 rounded-2xl flex flex-col' : 'rounded-2xl'}`}
+      >
+
+        {/* Header */}
+        <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
+          <div className="shrink-0">
+            <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
+            <p className="text-sm text-neutral-400">kg per picker per day</p>
+          </div>
+          <div className="w-px h-12 bg-neutral-200 shrink-0" />
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
+              <DatePicker value={dailyFrom} onChange={setDailyFrom} />
+            </div>
+            <div className="text-neutral-300 font-bold mt-4">→</div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">To</label>
+              <DatePicker value={dailyTo} onChange={setDailyTo} />
+            </div>
+          </div>
+          <button
+            onClick={() => setDailyMaximized(m => !m)}
+            className="ml-auto p-2 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
+          >
+            {dailyMaximized ? <Minimize2 size={16} strokeWidth={2.5} /> : <Maximize2 size={16} strokeWidth={2.5} />}
+          </button>
+        </div>
+
+        {/* Body */}
+        {dailyLoading ? (
+          <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
+        ) : pickerDailyStats.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">No data for this range</div>
+        ) : (
+          <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden' : ''}`}>
+
+            {/* Frozen left */}
+            <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
+              <table>
+                <thead>
+                  <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total kg</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total Boxes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pickerDailyStats.map(p => (
+                    <tr
+                      key={p.picker_id}
+                      onMouseEnter={() => setHoveredPicker(p.picker_id)}
+                      onMouseLeave={() => setHoveredPicker(null)}
+                      className="border-b border-neutral-100 transition-colors"
+                      style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <span className="font-semibold text-neutral-800 block pt-px">
+                          {p.first_name} {p.last_name}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <span className="font-mono font-bold text-primary-700 block pt-px">
+                          {p.total_kg.toLocaleString()} kg
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <span className="font-mono font-bold text-neutral-700 block pt-px">
+                          {p.total_boxes.toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Scrollable daily columns */}
+            <div className={`flex-1 overflow-x-auto ${dailyMaximized ? 'overflow-y-auto' : ''}`}>
+              <table>
+                <thead>
+                  <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                    {dailyColumns.map(day => (
+                      <th key={day} className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap min-w-36">
+                        {format(parseISO(day), 'MMM dd')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pickerDailyStats.map(p => (
+                    <tr
+                      key={p.picker_id}
+                      onMouseEnter={() => setHoveredPicker(p.picker_id)}
+                      onMouseLeave={() => setHoveredPicker(null)}
+                      className="border-b border-neutral-100 transition-colors"
+                      style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
+                    >
+                      {dailyColumns.map(day => {
+                        const dayData = p.days[day]
+                        if (!dayData || dayData.kg === 0) {
+                          return (
+                            <td key={day} className="px-4 py-4 whitespace-nowrap align-middle">
+                              <span className="text-neutral-200 text-sm">—</span>
+                            </td>
+                          )
+                        }
+                        return (
+                          <td key={day} className="px-4 py-4 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-bold text-neutral-800">
+                                {dayData.kg.toLocaleString()} kg
+                              </span>
+                              <div className="flex flex-col gap-0.5">
+                                {Object.entries(dayData.box_types).map(([boxName, info]) => (
+                                  <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">
+                                    {boxName}: {info.count}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
         )}
       </div>
 

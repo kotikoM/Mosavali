@@ -57,6 +57,33 @@ export interface PickerStat {
   total_kg:     number
 }
 
+export interface PickerDailyStat {
+  picker_id:  number
+  first_name: string
+  last_name:  string
+  days:       Record<string, number>
+  total_kg:   number
+}
+
+export interface DayBoxBreakdown {
+  kg:        number
+  box_types: Record<string, {
+    count:         number
+    net_weight_kg: number
+    total_kg:      number
+  }>
+}
+
+export interface PickerBoxStat {
+  picker_id:    number
+  first_name:   string
+  last_name:    string
+  total_kg:     number
+  total_boxes:  number
+  days:         Record<string, DayBoxBreakdown>
+}
+
+
 export const checkBarcode       = (barcode: string)            => api.post<BarcodeCheckResponse>('/harvest/check', { barcode }).then(r => r.data)
 export const bulkScan           = (data: BulkScanRequest)      => api.post<BulkScanResult>('/harvest/scan', data).then(r => r.data)
 export const getEntries         = ()                           => api.get<HarvestEntry[]>('/harvest/').then(r => r.data)
@@ -67,4 +94,16 @@ export const getDailyStats      = (from?: string, to?: string) => {
   if (from) params.append('from_date', from)
   if (to)   params.append('to_date', to)
   return api.get<DailyStatsResponse>(`/harvest/stats?${params}`).then(r => r.data)
+}
+export const getPickerDailyStats = (from?: string, to?: string) => {
+  const params = new URLSearchParams()
+  if (from) params.append('from_date', from)
+  if (to)   params.append('to_date', to)
+  return api.get<PickerDailyStat[]>(`/harvest/picker-daily-stats?${params}`).then(r => r.data)
+}
+export const getPickerBoxStats = (from?: string, to?: string) => {
+  const params = new URLSearchParams()
+  if (from) params.append('from_date', from)
+  if (to)   params.append('to_date', to)
+  return api.get<PickerBoxStat[]>(`/harvest/picker-box-stats?${params}`).then(r => r.data)
 }
