@@ -92,3 +92,53 @@ async def get_picker_stats(db: AsyncSession = Depends(get_db)):
         }
         for row in rows
     ]
+
+@router.get("/picker-daily-stats")
+async def get_picker_daily_stats(
+    from_date: date | None = None,
+    to_date:   date | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    query = (
+        select(
+            Picker.picker_id,
+            Picker.first_name,
+            Picker.last_name,
+            HarvestEntry.harvest_date,
+            func.sum(Box.net_weight_kg).label("daily_kg"),
+        )
+        .join(HarvestEntry, HarvestEntry.picker_id == Picker.picker_id)
+        .join(Box, Box.box_id == HarvestEntry.box_type_id)
+        .group_by(Picker.picker_id, Picker.first_name, Picker.last_name, HarvestEntry.harvest_date)
+        .order_by(Picker.picker_id, HarvestEntry.harvest_date)
+    )
+    if from_date:
+        query = query.where(HarvestEntry.harvest_date >= from_date)
+    if to_date:
+        query = query.where(HarvestEntry.harvest_date <= to_date)
+
+    result = await db.execute(query)
+    rows   = result.all()
+
+    # group by picker
+    pickers: dict[int, dict] = {}
+    for row in rows:
+        if row.picker_id not in pickers:
+            pickers[row.picker_id] = {
+                "picker_id":  row.picker_id,
+                "first_name": row.first_name,
+                "last_name":  row.last_name,
+                "days":       {},
+            }
+        pickers[row.picker_id]["days"][str(row.harvest_date)] = round(float(row.daily_kg), 3)
+
+    return [
+        {
+            "picker_id":  p["picker_id"],
+            "first_name": p["first_name"],
+            "last_name":  p["last_name"],
+            "days":       p["days"],
+            "total_kg":   round(sum(p["days"].values()), 3),
+        }
+        for p in pickers.values()
+    ]
