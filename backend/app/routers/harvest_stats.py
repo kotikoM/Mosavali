@@ -142,3 +142,79 @@ async def get_picker_daily_stats(
         }
         for p in pickers.values()
     ]
+
+
+@router.get("/picker-box-stats")
+async def get_picker_box_stats(
+    from_date: date | None = None,
+    to_date:   date | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    query = (
+        select(
+            Picker.picker_id,
+            Picker.first_name,
+            Picker.last_name,
+            HarvestEntry.harvest_date,
+            Box.box_id,
+            Box.name.label("box_name"),
+            Box.net_weight_kg,
+            func.count(HarvestEntry.box_number).label("box_count"),
+            func.sum(Box.net_weight_kg).label("daily_kg"),
+        )
+        .join(HarvestEntry, HarvestEntry.picker_id == Picker.picker_id)
+        .join(Box, Box.box_id == HarvestEntry.box_type_id)
+        .group_by(
+            Picker.picker_id,
+            Picker.first_name,
+            Picker.last_name,
+            HarvestEntry.harvest_date,
+            Box.box_id,
+            Box.name,
+            Box.net_weight_kg,
+        )
+        .order_by(Picker.picker_id, HarvestEntry.harvest_date, Box.box_id)
+    )
+    if from_date:
+        query = query.where(HarvestEntry.harvest_date >= from_date)
+    if to_date:
+        query = query.where(HarvestEntry.harvest_date <= to_date)
+
+    result = await db.execute(query)
+    rows   = result.all()
+
+    pickers: dict[int, dict] = {}
+    for row in rows:
+        if row.picker_id not in pickers:
+            pickers[row.picker_id] = {
+                "picker_id":  row.picker_id,
+                "first_name": row.first_name,
+                "last_name":  row.last_name,
+                "days":       {},
+                "total_kg":   0.0,
+                "total_boxes": 0,
+            }
+
+        day_str = str(row.harvest_date)
+        if day_str not in pickers[row.picker_id]["days"]:
+            pickers[row.picker_id]["days"][day_str] = {
+                "kg":        0.0,
+                "box_types": {},
+            }
+
+        pickers[row.picker_id]["days"][day_str]["kg"] += float(row.daily_kg)
+        pickers[row.picker_id]["days"][day_str]["box_types"][row.box_name] = {
+            "count":         row.box_count,
+            "net_weight_kg": float(row.net_weight_kg),
+            "total_kg":      round(float(row.daily_kg), 3),
+        }
+        pickers[row.picker_id]["total_kg"]    += float(row.daily_kg)
+        pickers[row.picker_id]["total_boxes"] += row.box_count
+
+    # round accumulated floats
+    for p in pickers.values():
+        p["total_kg"] = round(p["total_kg"], 3)
+        for day in p["days"].values():
+            day["kg"] = round(day["kg"], 3)
+
+    return list(pickers.values())
