@@ -5,7 +5,6 @@ const api = axios.create({ baseURL: 'http://localhost:8000' })
 export interface PrintBatch {
   batch_id:        number
   picker_id:       number
-  fruit_id:        number
   box_number_from: number
   box_number_to:   number
   quantity:        number
@@ -14,7 +13,6 @@ export interface PrintBatch {
 
 export interface PrintQueueItem {
   picker_id: number
-  fruit_id:  number
   quantity:  number
 }
 

@@ -10,12 +10,10 @@ import {
 import type { ColumnDef, SortingState, ColumnFiltersState } from '@tanstack/react-table'
 import { Printer, Plus, Trash2, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { getPickers } from '../api/pickers'
-import { getFruits } from '../api/fruits'
 import { createPrintBatch } from '../api/printBatches'
 import type { Picker } from '../api/pickers'
-import type { Fruit } from '../api/fruits'
-import PrintDialog from '../components/PrintDialog'
 import type { PrintBatch } from '../api/printBatches'
+import PrintDialog from '../components/PrintDialog'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import axios from 'axios'
@@ -23,7 +21,6 @@ import axios from 'axios'
 interface QueueEntry {
   id:       string
   picker:   Picker
-  fruit:    Fruit
   quantity: number
 }
 
@@ -34,27 +31,20 @@ export default function Printing() {
   const [sorting, setSorting]                 = useState<SortingState>([])
   const [columnFilters, setColumnFilters]     = useState<ColumnFiltersState>([])
   const [selectedPickers, setSelectedPickers] = useState<Set<number>>(new Set())
-  const [selectedFruit, setSelectedFruit]     = useState<Fruit | null>(null)
   const [quantity, setQuantity]               = useState<number>(15)
   const [queue, setQueue]                     = useState<QueueEntry[]>([])
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
-const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
+  const [printBatches, setPrintBatches]       = useState<PrintBatch[]>([])
 
   const { data: pickers = [], isLoading: pickersLoading } = useQuery({
     queryKey: ['pickers'],
     queryFn:  getPickers,
   })
 
-  const { data: fruits = [] } = useQuery({
-    queryKey: ['fruits'],
-    queryFn:  getFruits,
-  })
-
   const printMutation = useMutation({
     mutationFn: () => createPrintBatch({
       items: queue.map(q => ({
         picker_id: q.picker.picker_id,
-        fruit_id:  q.fruit.fruit_id,
         quantity:  q.quantity,
       }))
     }),
@@ -71,7 +61,7 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
       } else {
         addToast('Failed to print batch', 'error')
       }
-    }
+    },
   })
 
   const togglePicker = (id: number) => {
@@ -83,7 +73,7 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
   }
 
   const handleAddToQueue = () => {
-    if (!selectedFruit || selectedPickers.size === 0 || quantity < 1) return
+    if (selectedPickers.size === 0 || quantity < 1) return
 
     const newEntries: QueueEntry[] = []
     const skipped: string[] = []
@@ -91,18 +81,11 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
     pickers
       .filter(p => selectedPickers.has(p.picker_id))
       .forEach(picker => {
-        const alreadyInQueue = queue.some(
-          q => q.picker.picker_id === picker.picker_id && q.fruit.fruit_id === selectedFruit.fruit_id
-        )
+        const alreadyInQueue = queue.some(q => q.picker.picker_id === picker.picker_id)
         if (alreadyInQueue) {
           skipped.push(`${picker.first_name} ${picker.last_name}`)
         } else {
-          newEntries.push({
-            id:      crypto.randomUUID(),
-            picker,
-            fruit:   selectedFruit,
-            quantity,
-          })
+          newEntries.push({ id: crypto.randomUUID(), picker, quantity })
         }
       })
 
@@ -127,7 +110,7 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
       enableSorting: false,
       enableColumnFilter: false,
       header: ({ table }) => {
-        const visibleIds = table.getFilteredRowModel().rows.map(r => r.original.picker_id)
+        const visibleIds  = table.getFilteredRowModel().rows.map(r => r.original.picker_id)
         const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedPickers.has(id))
         const someSelected = visibleIds.some(id => selectedPickers.has(id))
         return (
@@ -212,7 +195,6 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold text-neutral-800">Printing</h1>
         <p className="text-sm text-neutral-500">Select pickers and queue sticker batches for printing.</p>
@@ -221,24 +203,19 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
       <div className="flex gap-6 items-start">
 
         {/* Left — picker table */}
-        <div className="flex-1 overflow-hidden rounded-[2rem] border-2 border-neutral-200 bg-white shadow-lg">
-
-          {/* Toolbar */}
+        <div className="flex-1 overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
           <div className="flex items-start justify-between border-b-2 border-neutral-100 px-6 py-5">
             <div>
               <p className="text-xl font-bold text-neutral-900">Select Pickers</p>
               <p className="text-sm text-neutral-400">
                 {pickers.length} registered
                 {selectedPickers.size > 0 && (
-                  <span className="ml-2 font-bold text-primary-700">
-                    · {selectedPickers.size} selected
-                  </span>
+                  <span className="ml-2 font-bold text-primary-700">· {selectedPickers.size} selected</span>
                 )}
               </p>
             </div>
           </div>
 
-          {/* Table */}
           {pickersLoading ? (
             <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
           ) : (
@@ -337,47 +314,25 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">Fruit</label>
-              <select
-                value={selectedFruit?.fruit_id ?? ''}
-                onChange={e => {
-                  const fruit = fruits.find(f => f.fruit_id === Number(e.target.value))
-                  setSelectedFruit(fruit ?? null)
-                }}
-                className={`mt-1.5 w-full px-4 py-3 rounded-xl border-2 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors
-                  ${!selectedFruit ? 'text-neutral-400 border-neutral-200' : 'text-neutral-800 border-neutral-200'}`}
-              >
-                <option value="" disabled>Select fruit...</option>
-                {fruits.map(fruit => (
-                  <option key={fruit.fruit_id} value={fruit.fruit_id}>
-                    {fruit.variety_name} ({fruit.fruit_type})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
               <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
                 Stickers per Picker
               </label>
               <input
                 type="number"
-                min={1}
-                max={999}
                 value={quantity}
-                onChange={e => setQuantity(Number(e.target.value))}
+                onChange={e => setQuantity(e.target.value)}
                 className="mt-1.5 w-full px-4 py-3 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
               />
-              {selectedPickers.size > 1 && (
+              {selectedPickers.size > 1 && Number(quantity) > 0 && (
                 <p className="text-xs text-neutral-400 mt-1.5">
-                  {quantity} × {selectedPickers.size} pickers = <span className="font-bold text-neutral-700">{quantity * selectedPickers.size}</span> total stickers
+                  {Number(quantity)} × {selectedPickers.size} pickers = <span className="font-bold text-neutral-700">{Number(quantity) * selectedPickers.size}</span> total stickers
                 </p>
               )}
             </div>
 
             <button
               onClick={handleAddToQueue}
-              disabled={selectedPickers.size === 0 || !selectedFruit || quantity < 1}
+              disabled={selectedPickers.size === 0 || quantity < 1}
               className="w-full py-3.5 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary transition-colors disabled:opacity-30 flex items-center justify-center gap-2"
             >
               <Plus size={16} strokeWidth={2.5} />
@@ -410,8 +365,8 @@ const [printBatches, setPrintBatches]         = useState<PrintBatch[]>([])
                         <span className="text-sm font-semibold text-neutral-800">
                           {item.picker.first_name} {item.picker.last_name}
                         </span>
-                        <span className="text-xs text-neutral-400 capitalize">
-                          {item.fruit.variety_name} · <span className="font-bold text-neutral-600">{item.quantity}</span> stickers
+                        <span className="text-xs text-neutral-400">
+                          <span className="font-bold text-neutral-600">{item.quantity}</span> stickers
                         </span>
                       </div>
                       <button

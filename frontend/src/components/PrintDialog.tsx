@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, Download, Printer } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import JsBarcode from 'jsbarcode'
@@ -6,7 +6,6 @@ import JsBarcode from 'jsbarcode'
 interface PrintBatch {
   batch_id:        number
   picker_id:       number
-  fruit_id:        number
   box_number_from: number
   box_number_to:   number
   quantity:        number
@@ -26,7 +25,7 @@ const LABEL_HEIGHTS = [
   { label: '102mm', value: 102 },
 ]
 
-const LABEL_WIDTH_MM = 101.6  // ZD421 4-inch
+const LABEL_WIDTH_MM = 101.6
 
 function padded(n: number, digits: number) {
   return String(n).padStart(digits, '0')
@@ -36,10 +35,9 @@ function generateStickerCodes(batches: PrintBatch[]): string[] {
   const codes: string[] = []
   for (const batch of batches) {
     for (let i = batch.box_number_from; i <= batch.box_number_to; i++) {
-      const ff   = padded(batch.fruit_id,  2)
       const pppp = padded(batch.picker_id, 4)
-      const bbbb = padded(i,               4)
-      codes.push(`${ff}-${pppp}-${bbbb}`)
+      const bbbb = padded(i, 4)
+      codes.push(`${pppp}-${bbbb}`)
     }
   }
   return codes
@@ -66,25 +64,23 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
   const previewRef                        = useRef<HTMLCanvasElement>(null)
 
   const totalStickers = batches.reduce((sum, b) => sum + b.quantity, 0)
-  const codes         = generateStickerCodes(batches)
+  const codes         = useMemo(() => generateStickerCodes(batches), [batches])
 
-  // draw preview of first sticker
   useEffect(() => {
     if (!open || !previewRef.current || codes.length === 0) return
-    const canvas  = previewRef.current
-    const ctx     = canvas.getContext('2d')
+    const canvas = previewRef.current
+    const ctx    = canvas.getContext('2d')
     if (!ctx) return
 
-    const DPI     = 96
-    const pxW     = Math.round(LABEL_WIDTH_MM  / 25.4 * DPI)
-    const pxH     = Math.round(labelHeightMm   / 25.4 * DPI)
+    const DPI    = 96
+    const pxW    = Math.round(LABEL_WIDTH_MM / 25.4 * DPI)
+    const pxH    = Math.round(labelHeightMm  / 25.4 * DPI)
     canvas.width  = pxW
     canvas.height = pxH
 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, pxW, pxH)
 
-    // barcode
     const barcodeCanvas = document.createElement('canvas')
     JsBarcode(barcodeCanvas, codes[0], {
       format:       'CODE128',
@@ -102,14 +98,13 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
     const barcodeY = Math.round(pxH * 0.08)
     ctx.drawImage(barcodeCanvas, barcodeX, barcodeY)
 
-    // code text
     const fontSize = Math.round(pxH * 0.14)
     ctx.fillStyle  = '#000000'
     ctx.font       = `bold ${fontSize}px monospace`
     ctx.textAlign  = 'center'
     ctx.fillText(codes[0], pxW / 2, barcodeY + barcodeH + fontSize + 4)
 
-  }, [open, labelHeightMm, barcodeScale, codes[0]])
+  }, [open, labelHeightMm, barcodeScale, codes])
 
   const generatePDF = () => {
     const doc = new jsPDF({
@@ -121,7 +116,7 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
     codes.forEach((code, idx) => {
       if (idx > 0) doc.addPage([labelHeightMm, LABEL_WIDTH_MM], 'landscape')
 
-      const imgData  = renderBarcode(code, barcodeScale)
+      const imgData       = renderBarcode(code, barcodeScale)
       const barcodeCanvas = document.createElement('canvas')
       JsBarcode(barcodeCanvas, code, {
         format:       'CODE128',
@@ -137,8 +132,6 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
       const barcodeY   = labelHeightMm * 0.08
 
       doc.addImage(imgData, 'PNG', barcodeX, barcodeY, barcodeWmm, barcodeHmm)
-
-      // code text
       doc.setFont('courier', 'bold')
       doc.setFontSize(labelHeightMm * 0.22)
       doc.text(code, LABEL_WIDTH_MM / 2, barcodeY + barcodeHmm + labelHeightMm * 0.14, { align: 'center' })
@@ -160,14 +153,11 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
   const handlePrint = () => {
     setIsGenerating(true)
     try {
-      const doc = generatePDF()
+      const doc     = generatePDF()
       const blobUrl = doc.output('bloburl')
-      const win = window.open(blobUrl as unknown as string)
+      const win     = window.open(blobUrl as unknown as string)
       if (win) {
-        win.onload = () => {
-          win.focus()
-          win.print()
-        }
+        win.onload = () => { win.focus(); win.print() }
       }
     } finally {
       setIsGenerating(false)
@@ -195,7 +185,7 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
           </button>
         </div>
 
-        <div className="flex gap-0">
+        <div className="flex">
 
           {/* Left — controls */}
           <div className="w-64 shrink-0 p-6 border-r border-neutral-100 flex flex-col gap-5">
@@ -214,18 +204,14 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
                       }`}
                   >
                     {h.label}
-                    <span className="text-xs text-neutral-400 ml-2">
-                      {LABEL_WIDTH_MM}mm × {h.value}mm
-                    </span>
+                    <span className="text-xs text-neutral-400 ml-2">{LABEL_WIDTH_MM}mm × {h.value}mm</span>
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
-                Barcode Scale
-              </label>
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Barcode Scale</label>
               <div className="mt-2 flex items-center gap-3">
                 <input
                   type="range"
@@ -239,12 +225,15 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
                 <span className="text-sm font-bold text-neutral-600 w-6">{barcodeScale}×</span>
               </div>
             </div>
+
+            <div className="mt-auto pt-4 border-t border-neutral-100">
+              <p className="text-xs text-neutral-400 text-center">ZD421 · 4-inch · CODE128</p>
+            </div>
           </div>
 
           {/* Right — preview + actions */}
           <div className="flex-1 p-6 flex flex-col gap-4">
 
-            {/* Preview */}
             <div>
               <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-3">
                 Preview — first sticker
@@ -265,7 +254,7 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
                 {batches.map(b => (
                   <div key={b.batch_id} className="flex items-center justify-between text-sm">
                     <span className="text-neutral-600 font-mono text-xs">
-                      P-{padded(b.picker_id, 4)} · FR-{padded(b.fruit_id, 2)}
+                      P-{padded(b.picker_id, 4)}
                     </span>
                     <span className="text-neutral-500 text-xs">
                       {padded(b.box_number_from, 4)}–{padded(b.box_number_to, 4)}
