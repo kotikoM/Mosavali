@@ -120,8 +120,13 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
                 className={`mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border text-sm outline-none focus:border-primary transition-colors ${errors.national_id ? 'border-red-400' : 'border-neutral-200'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="00000000000"
                 value={form.national_id}
-                onChange={e => setForm(f => ({ ...f, national_id: e.target.value }))}
+                onChange={e => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 11)
+                  setForm(f => ({ ...f, national_id: digits }))
+                }}
                 disabled={isEdit}
+                maxLength={11}
+                inputMode="numeric"
               />
               {errors.national_id && <p className="text-xs text-red-500 mt-1">{errors.national_id}</p>}
             </div>
