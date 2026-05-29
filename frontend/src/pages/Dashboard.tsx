@@ -376,11 +376,14 @@ export default function Dashboard() {
                       className="border-b border-neutral-100 transition-colors"
                       style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap align-top">
-                        <span className="font-semibold text-neutral-800 block pt-px">
-                          {p.first_name} {p.last_name}
-                        </span>
-                      </td>
+                        <td className="px-6 py-4 whitespace-nowrap align-top">
+                          <span className="font-semibold text-neutral-800 block">
+                            {p.first_name} {p.last_name}
+                          </span>
+                          <span className="font-mono text-xs text-neutral-400 block mt-0.5">
+                            {p.national_id.slice(0, 2)}-{p.national_id.slice(2, 5)}-{p.national_id.slice(5, 11)}
+                          </span>
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap align-top">
                         <span className="font-mono font-bold text-primary-700 block pt-px">
                           {p.total_kg.toLocaleString()} kg

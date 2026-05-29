@@ -155,6 +155,7 @@ async def get_picker_box_stats(
             Picker.picker_id,
             Picker.first_name,
             Picker.last_name,
+            Picker.national_id,
             HarvestEntry.harvest_date,
             Box.box_id,
             Box.name.label("box_name"),
@@ -168,6 +169,7 @@ async def get_picker_box_stats(
             Picker.picker_id,
             Picker.first_name,
             Picker.last_name,
+            Picker.national_id,
             HarvestEntry.harvest_date,
             Box.box_id,
             Box.name,
@@ -187,11 +189,12 @@ async def get_picker_box_stats(
     for row in rows:
         if row.picker_id not in pickers:
             pickers[row.picker_id] = {
-                "picker_id":  row.picker_id,
-                "first_name": row.first_name,
-                "last_name":  row.last_name,
-                "days":       {},
-                "total_kg":   0.0,
+                "picker_id":   row.picker_id,
+                "first_name":  row.first_name,
+                "last_name":   row.last_name,
+                "national_id": row.national_id,
+                "days":        {},
+                "total_kg":    0.0,
                 "total_boxes": 0,
             }
 
@@ -211,7 +214,6 @@ async def get_picker_box_stats(
         pickers[row.picker_id]["total_kg"]    += float(row.daily_kg)
         pickers[row.picker_id]["total_boxes"] += row.box_count
 
-    # round accumulated floats
     for p in pickers.values():
         p["total_kg"] = round(p["total_kg"], 3)
         for day in p["days"].values():

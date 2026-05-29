@@ -78,6 +78,7 @@ export interface PickerBoxStat {
   picker_id:    number
   first_name:   string
   last_name:    string
+  national_id:  string
   total_kg:     number
   total_boxes:  number
   days:         Record<string, DayBoxBreakdown>
