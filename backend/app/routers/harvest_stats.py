@@ -6,6 +6,7 @@ from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
 from app.entities.picker import Picker
 from app.entities.box import Box
+from app.entities.field import Field
 from app.schemas.harvest_entry import (
     DailyStatEntry,
     DailyStatsResponse,
@@ -220,3 +221,41 @@ async def get_picker_box_stats(
             day["kg"] = round(day["kg"], 3)
 
     return list(pickers.values())
+
+@router.get("/field-stats")
+async def get_field_stats(
+    from_date: date | None = None,
+    to_date:   date | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    query = (
+        select(
+            Field.field_id,
+            Field.field_name,
+            Field.description,
+            func.count(HarvestEntry.box_number).label("total_boxes"),
+            func.sum(Box.net_weight_kg).label("total_kg"),
+        )
+        .join(HarvestEntry, HarvestEntry.field_id == Field.field_id)
+        .join(Box, Box.box_id == HarvestEntry.box_type_id)
+        .group_by(Field.field_id, Field.field_name, Field.description)
+        .order_by(func.sum(Box.net_weight_kg).desc())
+    )
+    if from_date:
+        query = query.where(HarvestEntry.harvest_date >= from_date)
+    if to_date:
+        query = query.where(HarvestEntry.harvest_date <= to_date)
+
+    result = await db.execute(query)
+    rows   = result.all()
+
+    return [
+        {
+            "field_id":    row.field_id,
+            "field_name":  row.field_name,
+            "description": row.description,
+            "total_boxes": row.total_boxes or 0,
+            "total_kg":    round(float(row.total_kg or 0), 3),
+        }
+        for row in rows
+    ]
