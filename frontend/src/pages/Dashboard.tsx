@@ -1,12 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns'
 import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats, getFieldStats } from '../api/harvest'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
+
+const PAGE_SIZE   = 10
+const PIE_COLORS  = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
 
 function HeatmapCell({ count, max }: { count: number; max: number }) {
   const intensity = max > 0 ? count / max : 0
@@ -17,16 +20,14 @@ function HeatmapCell({ count, max }: { count: number; max: number }) {
     intensity < 0.75 ? 'bg-primary-400' :
                        'bg-primary-700'
   return (
-    <div
-      className={`w-5 h-5 rounded-sm ${bg} transition-all duration-500 cursor-default`}
-      title={`${count} boxes`}
-    />
+    <div className={`w-5 h-5 rounded-sm ${bg} transition-all duration-500 cursor-default`} title={`${count} boxes`} />
   )
 }
 
 export default function Dashboard() {
 
   const [pickerSearch, setPickerSearch]     = useState('')
+  const [pickerPage, setPickerPage]         = useState(1)
   const [sortBy, setSortBy]                 = useState<'total_boxes' | 'total_kg'>('total_boxes')
   const [sortDir, setSortDir]               = useState<'desc' | 'asc'>('desc')
   const [dailyFrom, setDailyFrom]           = useState(fmt(subDays(new Date(), 13)))
@@ -35,31 +36,11 @@ export default function Dashboard() {
   const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
   const [dailySearch, setDailySearch]       = useState('')
 
-
-  const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['harvest-overview'],
-    queryFn:  getHarvestOverview,
-  })
-
-  const { data: allStatsData, isLoading: heatmapLoading } = useQuery({
-    queryKey: ['harvest-stats-all'],
-    queryFn:  () => getDailyStats(),
-  })
-
-  const { data: pickerStats = [], isLoading: pickerStatsLoading } = useQuery({
-    queryKey: ['picker-stats'],
-    queryFn:  getPickerStats,
-  })
-
-  const { data: pickerDailyStats = [], isLoading: dailyLoading } = useQuery({
-    queryKey: ['picker-box-stats', dailyFrom, dailyTo],
-    queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
-  })
-
-  const { data: fieldStats = [], isLoading: fieldStatsLoading } = useQuery({
-    queryKey: ['field-stats'],
-    queryFn:  () => getFieldStats(),
-  })
+  const { data: overview,         isLoading: overviewLoading     } = useQuery({ queryKey: ['harvest-overview'],                    queryFn: getHarvestOverview })
+  const { data: allStatsData,     isLoading: heatmapLoading      } = useQuery({ queryKey: ['harvest-stats-all'],                   queryFn: () => getDailyStats() })
+  const { data: pickerStats = [], isLoading: pickerStatsLoading  } = useQuery({ queryKey: ['picker-stats'],                       queryFn: getPickerStats })
+  const { data: pickerDailyStats = [], isLoading: dailyLoading   } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo], queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
+  const { data: fieldStats = [],  isLoading: fieldStatsLoading   } = useQuery({ queryKey: ['field-stats'],                        queryFn: () => getFieldStats() })
 
   const dailyColumns = useMemo(() => {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
@@ -95,6 +76,11 @@ export default function Dashboard() {
     )
   }, [pickerStats, pickerSearch, sortBy, sortDir])
 
+  useEffect(() => { setPickerPage(1) }, [pickerSearch, sortBy, sortDir])
+
+  const pickerPageCount  = Math.ceil(filteredPickers.length / PAGE_SIZE)
+  const paginatedPickers = filteredPickers.slice((pickerPage - 1) * PAGE_SIZE, pickerPage * PAGE_SIZE)
+
   const heatmapRange = useMemo(() => {
     if (!allStatsData?.stats.length) return null
     const dates    = allStatsData.stats.map(s => parseISO(s.harvest_date))
@@ -107,22 +93,12 @@ export default function Dashboard() {
     if (!allStatsData || !heatmapRange) return []
     return eachDayOfInterval(heatmapRange).map(day => {
       const dayStr   = fmt(day)
-      const dayTotal = allStatsData.stats
-        .filter(s => s.harvest_date === dayStr)
-        .reduce((sum, s) => sum + s.count, 0)
-      return {
-        date:       dayStr,
-        label:      format(day, 'd'),
-        monthLabel: format(day, 'MMM yyyy'),
-        count:      dayTotal,
-      }
+      const dayTotal = allStatsData.stats.filter(s => s.harvest_date === dayStr).reduce((sum, s) => sum + s.count, 0)
+      return { date: dayStr, label: format(day, 'd'), monthLabel: format(day, 'MMM yyyy'), count: dayTotal }
     })
   }, [allStatsData, heatmapRange])
 
-  const heatmapMax = useMemo(() =>
-    Math.max(...heatmapData.map(d => d.count), 1),
-    [heatmapData]
-  )
+  const heatmapMax = useMemo(() => Math.max(...heatmapData.map(d => d.count), 1), [heatmapData])
 
   const heatmapByMonth = useMemo(() => {
     const months: { label: string; days: typeof heatmapData }[] = []
@@ -153,7 +129,6 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
-
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
             <Users size={30} className="text-primary-700" strokeWidth={2} />
@@ -189,13 +164,12 @@ export default function Dashboard() {
             </p>
           </div>
         </div>
-
       </div>
 
-       {/* Heatmap + Field pie */}
+      {/* Heatmap + Field pie */}
       <div className="grid grid-cols-3 gap-4 items-stretch">
 
-        {/* Heatmap — spans 2 columns */}
+        {/* Heatmap */}
         <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
           <div className="mb-6">
             <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
@@ -206,7 +180,6 @@ export default function Dashboard() {
               }
             </p>
           </div>
-
           {heatmapLoading ? (
             <div className="flex items-center justify-center py-12 text-neutral-400 text-sm">Loading...</div>
           ) : heatmapData.length === 0 ? (
@@ -219,16 +192,12 @@ export default function Dashboard() {
               <div className="flex flex-col gap-5">
                 {heatmapByMonth.map(month => (
                   <div key={month.label}>
-                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                      {month.label}
-                    </p>
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">{month.label}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {month.days.map(day => (
                         <div key={day.date} className="flex flex-col items-center gap-1">
                           <HeatmapCell count={day.count} max={heatmapMax} />
-                          <span className="text-[9px] text-neutral-300 font-medium leading-none">
-                            {day.label}
-                          </span>
+                          <span className="text-[9px] text-neutral-300 font-medium leading-none">{day.label}</span>
                         </div>
                       ))}
                     </div>
@@ -246,13 +215,12 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Field pie chart — spans 1 column */}
+        {/* Field pie */}
         <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
           <div className="mb-6">
             <p className="text-xl font-bold text-neutral-900">By Field</p>
             <p className="text-sm text-neutral-400">kg harvested per field — all time</p>
           </div>
-
           {fieldStatsLoading ? (
             <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
           ) : fieldStats.length === 0 ? (
@@ -278,30 +246,20 @@ export default function Dashboard() {
                     animationEasing="ease-out"
                   >
                     {fieldStats.map((_, idx) => (
-                      <Cell
-                        key={idx}
-                        fill={['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93'][idx % 5]}
-                      />
+                      <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '2px solid #E3E4E6',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                    }}
+                    contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
-
-              {/* Legend */}
               <div className="flex flex-col gap-2">
                 {fieldStats.map((f, idx) => {
-                  const total   = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
-                  const pct     = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
-                  const color   = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93'][idx % 5]
+                  const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
+                  const pct   = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
+                  const color = PIE_COLORS[idx % PIE_COLORS.length]
                   return (
                     <div key={f.field_id} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -319,7 +277,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-
       </div>
 
       {/* Picker stats table */}
@@ -334,7 +291,7 @@ export default function Dashboard() {
               value={pickerSearch}
               onChange={e => setPickerSearch(e.target.value)}
               placeholder="Search by name..."
-              className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+              className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
             />
             {pickerSearch && (
               <button
@@ -350,67 +307,107 @@ export default function Dashboard() {
         {pickerStatsLoading ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Picker</th>
-                <th
-                  className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
-                  onClick={() => handleSort('total_boxes')}
-                >
-                  <div className="flex items-center gap-1">
-                    Boxes <SortIcon col="total_boxes" />
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
-                  onClick={() => handleSort('total_kg')}
-                >
-                  <div className="flex items-center gap-1">
-                    Total kg <SortIcon col="total_kg" />
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Origin</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPickers.map((p, idx) => (
-                <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className="font-mono text-sm text-neutral-400">
-                      P-{String(p.picker_id).padStart(3, '0')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
-                      {p.total_boxes.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>
-                      {p.total_kg.toLocaleString()} kg
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span>
-                  </td>
+          <>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">ID</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Picker</th>
+                  <th
+                    className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                    onClick={() => handleSort('total_boxes')}
+                  >
+                    <div className="flex items-center gap-1">Boxes <SortIcon col="total_boxes" /></div>
+                  </th>
+                  <th
+                    className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
+                    onClick={() => handleSort('total_kg')}
+                  >
+                    <div className="flex items-center gap-1">Total kg <SortIcon col="total_kg" /></div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Origin</th>
                 </tr>
-              ))}
-              {filteredPickers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">
-                    {pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paginatedPickers.map((p, idx) => (
+                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
+                        {p.total_boxes.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>
+                        {p.total_kg.toLocaleString()} kg
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span>
+                    </td>
+                  </tr>
+                ))}
+                {filteredPickers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">
+                      {pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            {pickerPageCount > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t-2 border-neutral-100 bg-neutral-50">
+                <p className="text-sm text-neutral-400">
+                  Showing{' '}
+                  <span className="font-semibold text-neutral-700">
+                    {(pickerPage - 1) * PAGE_SIZE + 1}–{Math.min(pickerPage * PAGE_SIZE, filteredPickers.length)}
+                  </span>
+                  {' '}of{' '}
+                  <span className="font-semibold text-neutral-700">{filteredPickers.length}</span>
+                  {' '}pickers
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPickerPage(p => Math.max(1, p - 1))}
+                    disabled={pickerPage === 1}
+                    className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={15} strokeWidth={2.5} />
+                  </button>
+                  {Array.from({ length: pickerPageCount }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setPickerPage(page)}
+                      className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors
+                        ${pickerPage === page
+                          ? 'border-primary-700 bg-primary-700 text-white'
+                          : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPickerPage(p => Math.min(pickerPageCount, p + 1))}
+                    disabled={pickerPage === pickerPageCount}
+                    className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={15} strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -418,16 +415,12 @@ export default function Dashboard() {
       <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden
         ${dailyMaximized ? 'fixed inset-4 z-50 rounded-2xl flex flex-col' : 'rounded-2xl'}`}
       >
-
-        {/* Header */}
         <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
           <div className="shrink-0">
             <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
             <p className="text-sm text-neutral-400">kg per picker per day</p>
           </div>
-
           <div className="w-px h-12 bg-neutral-200 shrink-0" />
-
           <div className="flex items-end gap-3">
             <div className="flex flex-col gap-0.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
@@ -439,9 +432,7 @@ export default function Dashboard() {
               <DatePicker value={dailyTo} onChange={setDailyTo} />
             </div>
           </div>
-
           <div className="w-px h-12 bg-neutral-200 shrink-0" />
-
           <div className="flex flex-col gap-0.5">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker</label>
             <div className="relative">
@@ -469,10 +460,9 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Body */}
         {dailyLoading ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
-        ) : pickerDailyStats.length === 0 ? (
+        ) : filteredDailyStats.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">No data for this range</div>
         ) : (
           <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden' : ''}`}>
@@ -488,34 +478,40 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDailyStats.map(p => (
-                    <tr
-                      key={p.picker_id}
-                      onMouseEnter={() => setHoveredPicker(p.picker_id)}
-                      onMouseLeave={() => setHoveredPicker(null)}
-                      className="border-b border-neutral-100 transition-colors"
-                      style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
-                    >
+                  {filteredDailyStats.map(p => {
+                    const maxBoxTypes = Math.max(0, ...Object.values(p.days).map(d => Object.keys(d.box_types).length))
+                    return (
+                      <tr
+                        key={p.picker_id}
+                        onMouseEnter={() => setHoveredPicker(p.picker_id)}
+                        onMouseLeave={() => setHoveredPicker(null)}
+                        className="border-b border-neutral-100 transition-colors"
+                        style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-semibold text-neutral-800 block">
-                            {p.first_name} {p.last_name}
-                          </span>
+                          <span className="font-semibold text-neutral-800 block">{p.first_name} {p.last_name}</span>
                           <span className="font-mono text-xs text-neutral-400 block mt-0.5">
                             {p.national_id.slice(0, 2)}-{p.national_id.slice(2, 5)}-{p.national_id.slice(5, 11)}
                           </span>
+                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
+                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
+                          ))}
                         </td>
-                      <td className="px-6 py-4 whitespace-nowrap align-top">
-                        <span className="font-mono font-bold text-primary-700 block pt-px">
-                          {p.total_kg.toLocaleString()} kg
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap align-top">
-                        <span className="font-mono font-bold text-neutral-700 block pt-px">
-                          {p.total_boxes.toLocaleString()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-6 py-4 whitespace-nowrap align-top">
+                          <span className="font-mono font-bold text-primary-700 block pt-px">{p.total_kg.toLocaleString()} kg</span>
+                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
+                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
+                          ))}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap align-top">
+                          <span className="font-mono font-bold text-neutral-700 block pt-px">{p.total_boxes.toLocaleString()}</span>
+                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
+                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
+                          ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -551,9 +547,9 @@ export default function Dashboard() {
                           )
                         }
                         return (
-                          <td key={day} className="px-4 py-4 whitespace-nowrap align-middle">
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm font-bold text-neutral-800">
+                          <td key={day} className="px-4 py-4 whitespace-nowrap align-top">
+                            <div className="flex items-start gap-3">
+                              <span className="font-mono text-sm font-bold text-neutral-800 block">
                                 {dayData.kg.toLocaleString()} kg
                               </span>
                               <div className="flex flex-col gap-0.5">
