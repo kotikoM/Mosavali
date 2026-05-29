@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns'
-import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats } from '../api/harvest'
+import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats, getFieldStats } from '../api/harvest'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
 
@@ -53,6 +54,11 @@ export default function Dashboard() {
   const { data: pickerDailyStats = [], isLoading: dailyLoading } = useQuery({
     queryKey: ['picker-box-stats', dailyFrom, dailyTo],
     queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
+  })
+
+  const { data: fieldStats = [], isLoading: fieldStatsLoading } = useQuery({
+    queryKey: ['field-stats'],
+    queryFn:  () => getFieldStats(),
   })
 
   const dailyColumns = useMemo(() => {
@@ -186,55 +192,134 @@ export default function Dashboard() {
 
       </div>
 
-      {/* Heatmap */}
-      <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6">
-        <div className="mb-6">
-          <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
-          <p className="text-sm text-neutral-400">
-            {heatmapRange
-              ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
-              : 'All time — boxes scanned per day'
-            }
-          </p>
+       {/* Heatmap + Field pie */}
+      <div className="grid grid-cols-3 gap-4 items-stretch">
+
+        {/* Heatmap — spans 2 columns */}
+        <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
+          <div className="mb-6">
+            <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
+            <p className="text-sm text-neutral-400">
+              {heatmapRange
+                ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
+                : 'All time — boxes scanned per day'
+              }
+            </p>
+          </div>
+
+          {heatmapLoading ? (
+            <div className="flex items-center justify-center py-12 text-neutral-400 text-sm">Loading...</div>
+          ) : heatmapData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <CalendarDays size={32} className="text-neutral-200" />
+              <p className="text-neutral-400 text-sm">No scan data yet</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-5">
+                {heatmapByMonth.map(month => (
+                  <div key={month.label}>
+                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                      {month.label}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {month.days.map(day => (
+                        <div key={day.date} className="flex flex-col items-center gap-1">
+                          <HeatmapCell count={day.count} max={heatmapMax} />
+                          <span className="text-[9px] text-neutral-300 font-medium leading-none">
+                            {day.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-6">
+                <span className="text-xs text-neutral-400">Less</span>
+                {['bg-neutral-100', 'bg-primary-100', 'bg-primary-200', 'bg-primary-400', 'bg-primary-700'].map(c => (
+                  <div key={c} className={`w-5 h-5 rounded-sm ${c}`} />
+                ))}
+                <span className="text-xs text-neutral-400">More</span>
+              </div>
+            </>
+          )}
         </div>
 
-        {heatmapLoading ? (
-          <div className="flex items-center justify-center py-12 text-neutral-400 text-sm">Loading...</div>
-        ) : heatmapData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <CalendarDays size={32} className="text-neutral-200" />
-            <p className="text-neutral-400 text-sm">No scan data yet</p>
+        {/* Field pie chart — spans 1 column */}
+        <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
+          <div className="mb-6">
+            <p className="text-xl font-bold text-neutral-900">By Field</p>
+            <p className="text-sm text-neutral-400">kg harvested per field — all time</p>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-5">
-              {heatmapByMonth.map(month => (
-                <div key={month.label}>
-                  <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                    {month.label}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {month.days.map(day => (
-                      <div key={day.date} className="flex flex-col items-center gap-1">
-                        <HeatmapCell count={day.count} max={heatmapMax} />
-                        <span className="text-[9px] text-neutral-300 font-medium leading-none">
-                          {day.label}
-                        </span>
-                      </div>
+
+          {fieldStatsLoading ? (
+            <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
+          ) : fieldStats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 gap-2">
+              <p className="text-neutral-400 text-sm">No field data yet</p>
+            </div>
+          ) : (
+            <div className="flex flex-col flex-1 gap-4">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={fieldStats}
+                    dataKey="total_kg"
+                    nameKey="field_name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    isAnimationActive
+                    animationBegin={0}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                  >
+                    {fieldStats.map((_, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93'][idx % 5]}
+                      />
                     ))}
-                  </div>
-                </div>
-              ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: '2px solid #E3E4E6',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Legend */}
+              <div className="flex flex-col gap-2">
+                {fieldStats.map((f, idx) => {
+                  const total   = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
+                  const pct     = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
+                  const color   = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93'][idx % 5]
+                  return (
+                    <div key={f.field_id} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-neutral-400">{pct}%</span>
+                        <span className="font-mono text-xs font-bold text-neutral-700">{f.total_kg.toLocaleString()} kg</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div className="flex items-center gap-2 mt-6">
-              <span className="text-xs text-neutral-400">Less</span>
-              {['bg-neutral-100', 'bg-primary-100', 'bg-primary-200', 'bg-primary-400', 'bg-primary-700'].map(c => (
-                <div key={c} className={`w-5 h-5 rounded-sm ${c}`} />
-              ))}
-              <span className="text-xs text-neutral-400">More</span>
-            </div>
-          </>
-        )}
+          )}
+        </div>
+
       </div>
 
       {/* Picker stats table */}
