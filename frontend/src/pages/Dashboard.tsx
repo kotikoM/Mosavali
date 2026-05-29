@@ -32,6 +32,8 @@ export default function Dashboard() {
   const [dailyTo, setDailyTo]               = useState(fmt(new Date()))
   const [dailyMaximized, setDailyMaximized] = useState(false)
   const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
+  const [dailySearch, setDailySearch]       = useState('')
+
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['harvest-overview'],
@@ -57,6 +59,15 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
     return days.map(d => fmt(d))
   }, [dailyFrom, dailyTo])
+
+  const filteredDailyStats = useMemo(() => {
+    if (!dailySearch.trim()) return pickerDailyStats
+    const q = dailySearch.toLowerCase()
+    return pickerDailyStats.filter(p =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) ||
+      p.national_id.includes(dailySearch)
+    )
+  }, [pickerDailyStats, dailySearch])
 
   const handleSort = (col: 'total_boxes' | 'total_kg') => {
     if (sortBy === col) {
@@ -329,16 +340,40 @@ export default function Dashboard() {
             <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
             <p className="text-sm text-neutral-400">kg per picker per day</p>
           </div>
+
           <div className="w-px h-12 bg-neutral-200 shrink-0" />
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-end gap-3">
             <div className="flex flex-col gap-0.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
               <DatePicker value={dailyFrom} onChange={setDailyFrom} />
             </div>
-            <div className="text-neutral-300 font-bold mt-4">→</div>
+            <div className="text-neutral-300 font-bold pb-2">→</div>
             <div className="flex flex-col gap-0.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">To</label>
               <DatePicker value={dailyTo} onChange={setDailyTo} />
+            </div>
+          </div>
+
+          <div className="w-px h-12 bg-neutral-200 shrink-0" />
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker</label>
+            <div className="relative">
+              <input
+                value={dailySearch}
+                onChange={e => setDailySearch(e.target.value)}
+                placeholder="Search picker..."
+                className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
+              />
+              {dailySearch && (
+                <button
+                  onClick={() => setDailySearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
           <button
@@ -368,7 +403,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pickerDailyStats.map(p => (
+                  {filteredDailyStats.map(p => (
                     <tr
                       key={p.picker_id}
                       onMouseEnter={() => setHoveredPicker(p.picker_id)}
@@ -413,7 +448,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pickerDailyStats.map(p => (
+                  {filteredDailyStats.map(p => (
                     <tr
                       key={p.picker_id}
                       onMouseEnter={() => setHoveredPicker(p.picker_id)}
