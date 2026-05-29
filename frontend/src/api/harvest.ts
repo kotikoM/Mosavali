@@ -75,13 +75,14 @@ export interface DayBoxBreakdown {
 }
 
 export interface PickerBoxStat {
-  picker_id:    number
-  first_name:   string
-  last_name:    string
-  national_id:  string
-  total_kg:     number
-  total_boxes:  number
-  days:         Record<string, DayBoxBreakdown>
+  picker_id:       number
+  first_name:      string
+  last_name:       string
+  national_id:     string
+  total_kg:        number
+  total_boxes:     number
+  total_box_types: Record<string, number>  // box_name -> count
+  days:            Record<string, DayBoxBreakdown>
 }
 
 export interface FieldStat {

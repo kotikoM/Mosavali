@@ -330,7 +330,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {paginatedPickers.map((p, idx) => (
-                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors">
                     <td className="px-6 py-4">
                       <span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span>
                     </td>
@@ -479,7 +479,6 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {filteredDailyStats.map(p => {
-                    const maxBoxTypes = Math.max(0, ...Object.values(p.days).map(d => Object.keys(d.box_types).length))
                     return (
                       <tr
                         key={p.picker_id}
@@ -489,25 +488,29 @@ export default function Dashboard() {
                         style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
                       >
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-semibold text-neutral-800 block">{p.first_name} {p.last_name}</span>
-                          <span className="font-mono text-xs text-neutral-400 block mt-0.5">
-                            {p.national_id.slice(0, 2)}-{p.national_id.slice(2, 5)}-{p.national_id.slice(5, 11)}
+                          <span
+                          className="font-semibold text-neutral-800 block cursor-default"
+                          title={`${p.national_id.slice(0, 2)}-${p.national_id.slice(2, 5)}-${p.national_id.slice(5, 11)}`}
+                          >
+                          {p.first_name} {p.last_name}
                           </span>
-                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
-                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
-                          ))}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
                           <span className="font-mono font-bold text-primary-700 block pt-px">{p.total_kg.toLocaleString()} kg</span>
-                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
-                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
-                          ))}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-mono font-bold text-neutral-700 block pt-px">{p.total_boxes.toLocaleString()}</span>
-                          {Array.from({ length: maxBoxTypes }).map((_, i) => (
-                            <span key={i} className="block text-xs mt-0.5 invisible select-none" aria-hidden>placeholder</span>
-                          ))}
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-neutral-700 whitespace-nowrap">
+                              {p.total_boxes.toLocaleString()}
+                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              {Object.entries(p.total_box_types).map(([boxName, count]) => (
+                                <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">
+                                  {boxName}: {count}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -548,7 +551,7 @@ export default function Dashboard() {
                         }
                         return (
                           <td key={day} className="px-4 py-4 whitespace-nowrap align-top">
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-center gap-3">
                               <span className="font-mono text-sm font-bold text-neutral-800 block">
                                 {dayData.kg.toLocaleString()} kg
                               </span>
