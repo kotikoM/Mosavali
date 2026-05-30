@@ -18,14 +18,14 @@ interface Props {
   batches: PrintBatch[]
 }
 
-const LABEL_HEIGHTS = [
-  { label: '25mm',  value: 25  },
-  { label: '51mm',  value: 51  },
-  { label: '76mm',  value: 76  },
-  { label: '102mm', value: 102 },
-]
+const LABEL_WIDTH_MM = 97
 
-const LABEL_WIDTH_MM = 101.6
+const LABEL_HEIGHTS = [
+  { label: '33mm', value: 33 },
+  { label: '40mm', value: 40 },
+  { label: '51mm', value: 51 },
+  { label: '76mm', value: 76 },
+]
 
 function padded(n: number, digits: number) {
   return String(n).padStart(digits, '0')
@@ -227,7 +227,7 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
             </div>
 
             <div className="mt-auto pt-4 border-t border-neutral-100">
-              <p className="text-xs text-neutral-400 text-center">ZD421 · 4-inch · CODE128</p>
+              <p className="text-xs text-neutral-400 text-center">CODE128</p>
             </div>
           </div>
 
