@@ -31,7 +31,7 @@ export default function Printing() {
   const [sorting, setSorting]                 = useState<SortingState>([])
   const [columnFilters, setColumnFilters]     = useState<ColumnFiltersState>([])
   const [selectedPickers, setSelectedPickers] = useState<Set<number>>(new Set())
-  const [quantity, setQuantity]               = useState<number>(15)
+  const [quantity, setQuantity]               = useState<number>(0)
   const [queue, setQueue]                     = useState<QueueEntry[]>([])
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
   const [printBatches, setPrintBatches]       = useState<PrintBatch[]>([])
@@ -98,7 +98,6 @@ export default function Printing() {
     }
 
     setSelectedPickers(new Set())
-    setQuantity(15)
   }
 
   const formatNationalId = (id: string) =>
