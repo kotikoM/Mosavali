@@ -15,6 +15,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
     national_id:  '',
     first_name:   '',
     last_name:    '',
+    phone:        '',
     origin_place: '',
     bank_info:    '',
     note:         '',
@@ -28,24 +29,43 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
         national_id:  picker.national_id,
         first_name:   picker.first_name,
         last_name:    picker.last_name,
+        phone:        picker.phone ?? '',
         origin_place: picker.origin_place ?? '',
         bank_info:    picker.bank_info ?? '',
         note:         picker.note ?? '',
       })
     } else {
-      setForm({ national_id: '', first_name: '', last_name: '', origin_place: '', bank_info: '', note: '' })
+      setForm({ national_id: '', first_name: '', last_name: '', phone: '', origin_place: '', bank_info: '', note: '' })
     }
     setErrors({})
   }, [picker, open])
 
+  // format phone as XXX XX XX XX
+  const handlePhoneChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 9)
+    const parts  = []
+    if (digits.length > 0) parts.push(digits.slice(0, 3))
+    if (digits.length > 3) parts.push(digits.slice(3, 5))
+    if (digits.length > 5) parts.push(digits.slice(5, 7))
+    if (digits.length > 7) parts.push(digits.slice(7, 9))
+    setForm(f => ({ ...f, phone: parts.join(' ') }))
+  }
+
   const validate = () => {
     const e: Record<string, string> = {}
-    if (!form.first_name.trim())  e.first_name  = 'First name is required'
-    if (!form.last_name.trim())   e.last_name   = 'Last name is required'
+    if (!form.first_name.trim()) e.first_name = 'First name is required'
+    if (!form.last_name.trim())  e.last_name  = 'Last name is required'
     if (!isEdit) {
-      if (!form.national_id.trim())               e.national_id = 'National ID is required'
-      else if (!/^\d{11}$/.test(form.national_id)) e.national_id = 'Must be exactly 11 numeric digits'
+      if (!form.national_id.trim())
+        e.national_id = 'National ID is required'
+      else if (!/^\d{11}$/.test(form.national_id))
+        e.national_id = 'Must be exactly 11 numeric digits'
     }
+    const phoneDigits = form.phone.replace(/\D/g, '')
+    if (!phoneDigits)
+      e.phone = 'Phone number is required'
+    else if (phoneDigits.length !== 9)
+      e.phone = 'Must be 9 digits (XXX XX XX XX)'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -60,14 +80,15 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
     }
   }
 
+  const inp = (error?: string) =>
+    `mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border text-sm outline-none focus:border-primary transition-colors ${error ? 'border-red-400' : 'border-neutral-200'}`
+
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      {/* Dialog */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-8">
 
         {/* Header */}
@@ -85,15 +106,14 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
           </button>
         </div>
 
-        {/* Form */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
 
-          {/* First + Last name */}
+          {/* Row 1: First + Last */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">First Name</label>
               <input
-                className={`mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border text-sm outline-none focus:border-primary transition-colors ${errors.first_name ? 'border-red-400' : 'border-neutral-200'}`}
+                className={inp(errors.first_name)}
                 placeholder="e.g. John"
                 value={form.first_name}
                 onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
@@ -103,7 +123,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
             <div>
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Last Name</label>
               <input
-                className={`mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border text-sm outline-none focus:border-primary transition-colors ${errors.last_name ? 'border-red-400' : 'border-neutral-200'}`}
+                className={inp(errors.last_name)}
                 placeholder="e.g. Smith"
                 value={form.last_name}
                 onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
@@ -112,12 +132,12 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
             </div>
           </div>
 
-          {/* National ID + Origin */}
+          {/* Row 2: National ID + Phone */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">National ID</label>
               <input
-                className={`mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border text-sm outline-none focus:border-primary transition-colors ${errors.national_id ? 'border-red-400' : 'border-neutral-200'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`${inp(errors.national_id)} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="00000000000"
                 value={form.national_id}
                 onChange={e => {
@@ -131,32 +151,45 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
               {errors.national_id && <p className="text-xs text-red-500 mt-1">{errors.national_id}</p>}
             </div>
             <div>
-              <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Origin Place</label>
+              <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Phone</label>
               <input
-                className="mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-sm outline-none focus:border-primary transition-colors"
-                placeholder="e.g. Tbilisi"
-                value={form.origin_place}
-                onChange={e => setForm(f => ({ ...f, origin_place: e.target.value }))}
+                className={inp(errors.phone)}
+                placeholder="XXX XX XX XX"
+                value={form.phone}
+                onChange={e => handlePhoneChange(e.target.value)}
+                inputMode="numeric"
               />
+              {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
             </div>
           </div>
 
-          {/* Bank info */}
+          {/* Row 3: Origin Place */}
+          <div>
+            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Origin Place</label>
+            <input
+              className={inp()}
+              placeholder="e.g. Tbilisi"
+              value={form.origin_place}
+              onChange={e => setForm(f => ({ ...f, origin_place: e.target.value }))}
+            />
+          </div>
+
+          {/* Row 4: Bank Info */}
           <div>
             <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Bank Information</label>
             <input
-              className="mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-sm outline-none focus:border-primary transition-colors"
+              className={inp()}
               placeholder="Branch / Account Number / Key / IBAN"
               value={form.bank_info}
               onChange={e => setForm(f => ({ ...f, bank_info: e.target.value }))}
             />
           </div>
 
-          {/* Note */}
+          {/* Row 5: Note */}
           <div>
             <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Internal Note</label>
             <textarea
-              className="mt-1 w-full px-4 py-2.5 rounded-lg bg-neutral-50 border border-neutral-200 text-sm outline-none focus:border-primary transition-colors resize-none"
+              className={`${inp()} resize-none`}
               placeholder="Contract specifics or performance history notes..."
               rows={3}
               value={form.note}
@@ -177,7 +210,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary-500 transition-colors disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary transition-colors disabled:opacity-50"
           >
             <UserPlus size={16} />
             {isEdit ? 'Save Changes' : 'Register'}

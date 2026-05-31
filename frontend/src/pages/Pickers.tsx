@@ -118,6 +118,15 @@ export default function Pickers() {
       cell: info => <span className="font-mono text-neutral-800">{formatNationalId(info.getValue<string>())}</span>,
     },
     {
+      header: 'Phone',
+      accessorKey: 'phone',
+      cell: info => (
+        <span className="font-mono text-sm text-neutral-600">
+          {info.getValue<string>() ?? '—'}
+        </span>
+      ),
+    },
+    {
       header: 'Origin',
       accessorKey: 'origin_place',
       cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
