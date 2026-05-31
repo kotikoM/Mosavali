@@ -231,10 +231,8 @@ export default function Boxes() {
                   <tr>
                     <td colSpan={columns.length} className="px-6 py-24 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <div className="text-5xl">📦</div>
                         <div>
-                          <p className="font-semibold text-neutral-700">No box types configured</p>
-                          <p className="mt-1 text-sm text-neutral-400">Create your first harvesting container profile.</p>
+                          <p className="mt-1 text-sm text-neutral-400">No box types configured.</p>
                         </div>
                       </div>
                     </td>

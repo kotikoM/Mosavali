@@ -314,7 +314,7 @@ export default function Printing() {
 
             <div>
               <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
-                Stickers per Picker
+                Number of stickers
               </label>
               <input
                 type="number"

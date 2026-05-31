@@ -261,7 +261,7 @@ export default function Scanning() {
 
         <div>
           <h1 className="text-3xl font-bold text-neutral-800">
-            Scanning <span className="font-light text-neutral-400">Station</span>
+            Scanning
           </h1>
           <p className="mt-2 text-sm text-neutral-500">Scan harvest entries.</p>
         </div>
@@ -278,7 +278,6 @@ export default function Scanning() {
             </div>
             <div className="text-center">
               <p className="text-base font-black text-white uppercase tracking-widest">Start</p>
-              <p className="text-base font-black text-white uppercase tracking-widest">Scan Session</p>
             </div>
           </button>
 

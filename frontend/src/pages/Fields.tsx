@@ -218,7 +218,7 @@ export default function Fields() {
               {table.getRowModel().rows.length === 0 && (
                 <tr>
                   <td colSpan={columns.length} className="px-6 py-20 text-center text-neutral-400 text-sm">
-                    No fields found. Add your first harvest field.
+                    No fields found.
                   </td>
                 </tr>
               )}

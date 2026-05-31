@@ -176,7 +176,7 @@ export default function Dashboard() {
             <p className="text-sm text-neutral-400">
               {heatmapRange
                 ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
-                : 'All time — boxes scanned per day'
+                : 'Boxes scanned per day — all time'
               }
             </p>
           </div>

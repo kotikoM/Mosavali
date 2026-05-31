@@ -165,7 +165,7 @@ export default function Pickers() {
         <div>
         <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
         <p className="mt-2 text-sm text-neutral-500">
-              Configure harvesters.
+              Add, modify or delete harvesters.
         </p>
         </div>
         <button

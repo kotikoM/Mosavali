@@ -77,7 +77,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
               {isEdit ? 'Edit Picker' : 'Register New Picker'}
             </h2>
             <p className="text-sm text-neutral-400 mt-1">
-              Fill in the official staff credentials to activate scanning access.
+              Fill in the official credentials to activate scanning access.
             </p>
           </div>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 transition-colors">
@@ -180,7 +180,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
             className="flex-1 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary-500 transition-colors disabled:opacity-50"
           >
             <UserPlus size={16} />
-            {isEdit ? 'Save Changes' : 'Register Staff Member'}
+            {isEdit ? 'Save Changes' : 'Register'}
           </button>
         </div>
 
