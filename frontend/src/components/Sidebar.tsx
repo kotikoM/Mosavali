@@ -19,7 +19,7 @@ export default function Sidebar() {
           <span className="text-white text-lg font-bold">M</span>
         </div>
         <div>
-          <p className="text-2xl font-bold text-neutral-800">Mosavali</p>
+          <p className="text-2xl font-bold text-neutral-800">Seeder BB</p>
           <p className="text-sm text-neutral-400">Field Ops</p>
         </div>
       </div>
