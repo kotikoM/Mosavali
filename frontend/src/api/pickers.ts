@@ -7,6 +7,7 @@ export interface Picker {
     national_id:  string
     first_name:   string
     last_name:    string
+    phone:        string
     origin_place: string | null
     bank_info:    string | null
     note:         string | null
@@ -16,6 +17,7 @@ export interface PickerCreate {
     national_id:   string
     first_name:    string
     last_name:     string
+    phone:         string
     origin_place?: string
     bank_info?:    string
     note?:         string
@@ -24,6 +26,7 @@ export interface PickerCreate {
 export interface PickerUpdate {
     first_name?:   string
     last_name?:    string
+    phone?:        string
     origin_place?: string
     bank_info?:    string
     note?:         string

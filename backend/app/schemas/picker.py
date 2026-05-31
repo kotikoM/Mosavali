@@ -5,6 +5,7 @@ class PickerCreate(BaseModel):
     national_id:  str
     first_name:   str
     last_name:    str
+    phone:        str
     origin_place: str | None = None
     bank_info:    str | None = None
     note:         str | None = None
@@ -13,6 +14,7 @@ class PickerCreate(BaseModel):
 class PickerUpdate(BaseModel):
     first_name:   str | None = None
     last_name:    str | None = None
+    phone:        str | None = None
     origin_place: str | None = None
     bank_info:    str | None = None
     note:         str | None = None
@@ -23,6 +25,7 @@ class PickerResponse(BaseModel):
     national_id:  str
     first_name:   str
     last_name:    str
+    phone:        str
     origin_place: str | None
     bank_info:    str | None
     note:         str | None

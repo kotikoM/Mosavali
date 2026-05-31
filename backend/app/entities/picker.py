@@ -10,6 +10,7 @@ class Picker(Base):
     national_id:  Mapped[str]        = mapped_column(Text, nullable=False, unique=True)
     first_name:   Mapped[str]        = mapped_column(Text, nullable=False)
     last_name:    Mapped[str]        = mapped_column(Text, nullable=False)
+    phone:        Mapped[str]        = mapped_column(Text, nullable=False)
     origin_place: Mapped[str | None] = mapped_column(Text)
     bank_info:    Mapped[str | None] = mapped_column(Text)
     note:         Mapped[str | None] = mapped_column(Text)
