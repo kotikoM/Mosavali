@@ -3,7 +3,6 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { X, Printer } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import JsBarcode from 'jsbarcode'
-import { openPdfInViewer } from '../api/pdf'
 
 interface PrintBatch {
   batch_id:        number
@@ -120,7 +119,7 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
 
       const bc = document.createElement('canvas')
       JsBarcode(bc, code, {
-        format: 'CODE128', width: barcodeScale,
+        format: 'CODE128', width: barcodeScale * 3,
         height: Math.round(lH * 0.50),
         displayValue: false, margin: 0,
         background: '#ffffff', lineColor: '#000000',
@@ -147,17 +146,17 @@ export default function PrintDialog({ open, onClose, batches }: Props) {
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────
-    const handlePrint = async () => {
-      setIsGenerating(true)
-      try {
-        const blob = generatePDF().output('blob')
-        await openPdfInViewer(blob)
-      } catch (e) {
-        console.error('Failed to open PDF:', e)
-      } finally {
-        setIsGenerating(false)
-      }
+  const handlePrint = () => {
+    setIsGenerating(true)
+    try {
+      const blob = generatePDF().output('blob')
+      const url  = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } finally {
+      setIsGenerating(false)
     }
+  }
 
   if (!open) return null
 
