@@ -91,7 +91,6 @@ export default function Printing() {
 
     if (newEntries.length > 0) {
       setQueue(prev => [...prev, ...newEntries])
-      addToast(`Added ${newEntries.length} picker(s) to queue`, 'success')
     }
     if (skipped.length > 0) {
       addToast(`Skipped ${skipped.length} duplicate(s)`, 'error')

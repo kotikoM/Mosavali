@@ -17,6 +17,7 @@ class PrintBatchCreate(BaseModel):
 class PrintBatchResponse(BaseModel):
     batch_id:        int
     picker_id:       int
+    picker_name:     str
     box_number_from: int
     box_number_to:   int
     quantity:        int

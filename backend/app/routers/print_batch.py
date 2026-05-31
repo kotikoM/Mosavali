@@ -13,31 +13,26 @@ async def _create_single_batch(
     picker_id: int,
     quantity:  int,
     db:        AsyncSession,
-) -> PrintBatch:
-    # verify picker exists
+) -> tuple[PrintBatch, str]:                        # ← return name too
     picker = await db.get(Picker, picker_id)
     if not picker:
         raise HTTPException(status_code=404, detail=f"Picker {picker_id} not found")
 
-    # advisory lock per picker — prevents race conditions
     await db.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": picker_id})
 
-    # compute next box number
     result = await db.execute(
         select(func.coalesce(func.max(PrintBatch.box_number_to), 0))
         .where(PrintBatch.picker_id == picker_id)
     )
-    last_box        = result.scalar()
-    box_number_from = last_box + 1
-    box_number_to   = last_box + quantity
+    last_box = result.scalar()
 
     batch = PrintBatch(
         picker_id=picker_id,
-        box_number_from=box_number_from,
-        box_number_to=box_number_to,
+        box_number_from=last_box + 1,
+        box_number_to=last_box + quantity,
     )
     db.add(batch)
-    return batch
+    return batch, f"{picker.first_name} {picker.last_name}"
 
 
 @router.post("/queue", response_model=list[PrintBatchResponse])
@@ -45,18 +40,26 @@ async def create_print_queue(data: PrintQueueRequest, db: AsyncSession = Depends
     if not data.items:
         raise HTTPException(status_code=400, detail="Queue is empty")
 
-    batches = []
+    pairs: list[tuple[PrintBatch, str]] = []
     for item in data.items:
-        batch = await _create_single_batch(item.picker_id, item.quantity, db)
-        batches.append(batch)
+        pair = await _create_single_batch(item.picker_id, item.quantity, db)
+        pairs.append(pair)
 
-    # commit all at once — all succeed or all fail
     await db.commit()
 
-    for batch in batches:
+    responses = []
+    for batch, name in pairs:
         await db.refresh(batch)
-
-    return batches
+        responses.append(PrintBatchResponse(
+            batch_id=batch.batch_id,
+            picker_id=batch.picker_id,
+            picker_name=name,
+            box_number_from=batch.box_number_from,
+            box_number_to=batch.box_number_to,
+            quantity=batch.quantity,
+            printed_at=batch.printed_at,
+        ))
+    return responses
 
 
 @router.get("/", response_model=list[PrintBatchResponse])
