@@ -167,20 +167,29 @@ export default function Pickers() {
     <div className="flex flex-col gap-6">
 
       {/* Header */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <div>
         <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
         </div>
-        <button
-          onClick={handleOpenCreate}
-          className="flex items-center gap-3 w-fit px-6 py-3 bg-primary-700 text-white font-semibold rounded-xl hover:bg-primary transition-colors"
-        >
-          <UserPlus size={17} strokeWidth={2.5} />
-          Add New Picker
-        </button>
+        <div className="grid grid-cols-4 gap-4">
+          <button
+            onClick={handleOpenCreate}
+            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-primary-700 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+              <UserPlus size={28} className="text-white" strokeWidth={2.5} />
+            </div>
+
+            <div className="text-center">
+              <p className="text-base font-black text-white uppercase tracking-widest">
+                Add New Picker
+              </p>
+            </div>
+          </button>
+        </div>
       </div>
 
-{/* Table card */}
+      {/* Table card */}
       <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
 
         {/* Toolbar */}
