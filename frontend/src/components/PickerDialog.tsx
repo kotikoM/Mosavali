@@ -114,7 +114,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">First Name</label>
               <input
                 className={inp(errors.first_name)}
-                placeholder="e.g. John"
+                placeholder="e.g. Boris"
                 value={form.first_name}
                 onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
               />
@@ -124,7 +124,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Last Name</label>
               <input
                 className={inp(errors.last_name)}
-                placeholder="e.g. Smith"
+                placeholder="e.g. Machavariani"
                 value={form.last_name}
                 onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
               />
@@ -138,7 +138,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">National ID</label>
               <input
                 className={`${inp(errors.national_id)} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
-                placeholder="00000000000"
+                placeholder="XXXXXXXXXXX"
                 value={form.national_id}
                 onChange={e => {
                   const digits = e.target.value.replace(/\D/g, '').slice(0, 11)
@@ -187,7 +187,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
 
           {/* Row 5: Note */}
           <div>
-            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Internal Note</label>
+            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Note</label>
             <textarea
               className={`${inp()} resize-none`}
               placeholder="Contract specifics or performance history notes..."

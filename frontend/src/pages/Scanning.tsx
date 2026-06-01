@@ -666,7 +666,7 @@ export default function Scanning() {
               className="flex-1 py-5 rounded-xl border-2 border-neutral-200 bg-white shadow-sm text-neutral-600 text-base font-semibold hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2"
             >
               <X size={18} strokeWidth={2.5} />
-              Clear Session
+              Close
             </button>
             <button
               onClick={() => commitMutation.mutate()}
@@ -674,7 +674,7 @@ export default function Scanning() {
               className="flex-[2] py-5 rounded-xl bg-primary-700 text-white text-base font-bold hover:bg-primary transition-colors disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
             >
               <CheckCircle size={18} strokeWidth={2.5} />
-              {commitMutation.isPending ? 'Committing...' : `Commit Batch (${validCount} Entries)`}
+              {commitMutation.isPending ? 'Committing...' : `Commit (${validCount} Entries)`}
             </button>
           </div>
         </div>
