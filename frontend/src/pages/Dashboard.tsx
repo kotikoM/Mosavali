@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [dailyMaximized, setDailyMaximized] = useState(false)
   const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
   const [dailySearch, setDailySearch]       = useState('')
+  const [heroDate, setHeroDate] = useState(fmt(new Date()))
 
   const today = fmt(new Date())
 
@@ -29,8 +30,10 @@ export default function Dashboard() {
   const { data: pickerStats = [],      isLoading: pickerStatsLoading } = useQuery({ queryKey: ['picker-stats'],                        queryFn: getPickerStats })
   const { data: pickerDailyStats = [], isLoading: dailyLoading       } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo], queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
   const { data: fieldStats = [],       isLoading: fieldStatsLoading  } = useQuery({ queryKey: ['field-stats'],                         queryFn: () => getFieldStats() })
-  const { data: todayStats = [],       isLoading: todayLoading       } = useQuery({ queryKey: ['picker-box-stats-today', today],        queryFn: () => getPickerBoxStats(today, today) })
-
+  const { data: todayStats = [], isLoading: todayLoading } = useQuery({
+    queryKey: ['picker-box-stats-hero', heroDate],
+    queryFn:  () => getPickerBoxStats(heroDate, heroDate),
+  })
   const pickersToday = todayStats.length
   const boxesToday   = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
   const kgToday      = Math.round(todayStats.reduce((sum, p) => sum + p.total_kg, 0) * 10) / 10
@@ -39,6 +42,7 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
     return days.map(d => fmt(d))
   }, [dailyFrom, dailyTo])
+
 
   const filteredDailyStats = useMemo(() => {
     if (!dailySearch.trim()) return pickerDailyStats
@@ -79,11 +83,24 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
       </div>
 
-{/* ── TODAY HERO ─────────────────────────────────────────────── */}
+      {/* ── DAY HERO ─────────────────────────────────────────────── */}
       <div className="bg-primary-700 rounded-2xl overflow-hidden">
 
-        <div className="px-8 pt-7 pb-0 flex items-center gap-3">
-          <p className="text-l font-bold text-white uppercase tracking-[0.3em]">Today's Harvest</p>
+        <div className="px-8 pt-7 pb-0 flex items-center gap-6">
+          <div>
+            <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
+          </div>
+
+          <div className="w-px h-8 bg-primary-500 shrink-0" />
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-bold text-primary-200 uppercase tracking-widest">Date</span>
+            <DatePicker
+              value={heroDate}
+              onChange={setHeroDate}
+              className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-3 mt-2">
@@ -93,6 +110,7 @@ export default function Dashboard() {
             <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
               {todayLoading ? '—' : pickersToday}
             </span>
+            <span className="text-base font-medium text-primary-200 mt-4">pickers on field</span>
           </div>
 
           <div className="flex flex-col px-8 py-8 border-r border-primary-500">
@@ -100,6 +118,7 @@ export default function Dashboard() {
             <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
               {todayLoading ? '—' : boxesToday.toLocaleString()}
             </span>
+            <span className="text-base font-medium text-primary-200 mt-4">boxes committed</span>
           </div>
 
           <div className="flex flex-col px-8 py-8">
@@ -110,6 +129,7 @@ export default function Dashboard() {
               </span>
               <span className="text-4xl font-black text-primary-100">kg</span>
             </div>
+            <span className="text-base font-medium text-primary-200 mt-4">net weight</span>
           </div>
 
         </div>
@@ -319,18 +339,23 @@ export default function Dashboard() {
         ) : (
           <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden' : ''}`}>
 
+            {/* Frozen left */}
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
                   <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                    <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest whitespace-nowrap w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total kg</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total Boxes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDailyStats.map(p => (
+                  {filteredDailyStats.map((p, idx) => (
                     <tr key={p.picker_id} onMouseEnter={() => setHoveredPicker(p.picker_id)} onMouseLeave={() => setHoveredPicker(null)} className="border-b border-neutral-100 transition-colors" style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}>
+                      <td className="px-4 py-4 whitespace-nowrap align-top">
+                        <span className="text-sm font-bold text-neutral-300 font-mono">{idx + 1}</span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap align-top">
                         <span className="font-semibold text-neutral-800 block cursor-default" title={`${p.national_id.slice(0,2)}-${p.national_id.slice(2,5)}-${p.national_id.slice(5,11)}`}>{p.first_name} {p.last_name}</span>
                       </td>
@@ -353,6 +378,7 @@ export default function Dashboard() {
               </table>
             </div>
 
+            {/* Scrollable daily columns */}
             <div className={`flex-1 overflow-x-auto ${dailyMaximized ? 'overflow-y-auto' : ''}`}>
               <table>
                 <thead>
