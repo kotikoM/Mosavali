@@ -1,13 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, ScanBarcode, Printer, Users, Rows3, Box } from 'lucide-react'
+import { LayoutDashboard, ScanBarcode, Printer, Users } from 'lucide-react'
 
 const links = [
-  { to: '/',             label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/scanning',     label: 'Scanning',  icon: ScanBarcode },
-  { to: '/printing',     label: 'Printing',  icon: Printer },
-  { to: '/pickers',      label: 'Pickers',   icon: Users },
-  { to: '/fields',       label: 'Fields',    icon: Rows3 },
-  { to: '/box-types',    label: 'Boxes',     icon: Box },
+  { to: '/',         label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/scanning', label: 'Scanning',  icon: ScanBarcode },
+  { to: '/printing', label: 'Printing',  icon: Printer },
+  { to: '/pickers',  label: 'Pickers',   icon: Users },
 ]
 
 export default function Sidebar() {
