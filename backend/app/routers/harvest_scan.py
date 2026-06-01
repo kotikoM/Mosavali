@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
 from app.entities.print_batch import PrintBatch
@@ -95,9 +96,52 @@ async def bulk_scan(data: BulkScanRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/", response_model=list[HarvestEntryResponse])
-async def get_all_entries(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(HarvestEntry).order_by(HarvestEntry.scan_date.desc())
-    )
-    return result.scalars().all()
+@router.get("/")
+async def get_entries(
+    page:      int          = Query(1, ge=1),
+    page_size: int          = Query(25, ge=1, le=100),
+    search:    str | None   = Query(None),
+    db:        AsyncSession = Depends(get_db),
+):
+    offset = (page - 1) * page_size
+    base   = select(HarvestEntry).order_by(HarvestEntry.scan_date.desc())
+
+    if search:
+        s = search.strip()
+        if '-' in s:
+            # full barcode PPPP-BBBB → exact match on both
+            parts = s.split('-')
+            if len(parts) == 2:
+                try:
+                    picker_num = int(parts[0])
+                    box_num    = int(parts[1])
+                    base = base.where(
+                        (HarvestEntry.picker_id  == picker_num) &
+                        (HarvestEntry.box_number == box_num)
+                    )
+                except ValueError:
+                    pass
+        else:
+            # single number → match picker_id or box_number
+            try:
+                num  = int(s)
+                base = base.where(
+                    (HarvestEntry.picker_id  == num) |
+                    (HarvestEntry.box_number == num)
+                )
+            except ValueError:
+                pass
+
+    total_result = await db.execute(select(func.count()).select_from(base.subquery()))
+    total        = total_result.scalar_one()
+
+    result = await db.execute(base.offset(offset).limit(page_size))
+    items  = result.scalars().all()
+
+    return {
+        "items":     items,
+        "total":     total,
+        "page":      page,
+        "page_size": page_size,
+        "pages":     (total + page_size - 1) // page_size,
+    }

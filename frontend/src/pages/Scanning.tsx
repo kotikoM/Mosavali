@@ -7,7 +7,7 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
-import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight, TrendingUp, Box, CalendarDays, BarChart2 } from 'lucide-react'
+import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight, TrendingUp, Box, CalendarDays, BarChart2, Rows3, Package2  } from 'lucide-react'
 import { checkBarcode, bulkScan, getEntries, getDailyStats } from '../api/harvest'
 import { getBoxes } from '../api/boxes'
 import { getFields } from '../api/fields'
@@ -17,6 +17,9 @@ import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import { useSound } from '../hooks/useSound'
 import DatePicker from '../components/DatePicker'
+import FieldManagementDialog from '../components/FieldManagementDialog'
+import BoxManagementDialog from '../components/BoxManagementDialog'
+
 
 // ── types ──────────────────────────────────────────────────────────────
 type ScanStatus = 'idle' | 'valid' | 'error'
@@ -97,17 +100,44 @@ export default function Scanning() {
   const [globalFilter, setGlobalFilter]   = useState('')
   const [fromDate, setFromDate]           = useState(fmt(subDays(new Date(), 9)))
   const [toDate, setToDate]               = useState(fmt(new Date()))
+  const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
+  const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
+  const [entriesSearch, setEntriesSearch]     = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [entriesPage, setEntriesPage]         = useState(1)
+  const PAGE_SIZE                              = 25
+
+  const today = fmt(new Date())
+
+  // debounce
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(entriesSearch), 300)
+    return () => clearTimeout(t)
+  }, [entriesSearch])
+
+  // reset page on search change
+  useEffect(() => { setEntriesPage(1) }, [debouncedSearch])
 
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── data fetching ──────────────────────────────────────────────────
-  const { data: boxes = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
+  const { data: boxes = [] }  = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
 
-  const { data: entries = [], isLoading: entriesLoading } = useQuery({
-    queryKey: ['harvest'],
-    queryFn:  getEntries,
+  const { data: todayStats } = useQuery({
+    queryKey: ['harvest-stats-today'],
+    queryFn:  () => getDailyStats(today, today),
   })
+  const todayCount = todayStats?.total ?? 0
+
+  const { data: entriesData, isLoading: entriesLoading } = useQuery({
+    queryKey: ['harvest', entriesPage, debouncedSearch],
+    queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedSearch),
+  })
+
+  const entries      = entriesData?.items ?? []
+  const entriesTotal = entriesData?.total ?? 0
+  const entriesPages = entriesData?.pages ?? 1
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['harvest-stats', fromDate, toDate],
@@ -266,9 +296,10 @@ export default function Scanning() {
           <p className="mt-2 text-sm text-neutral-500">Scan harvest entries.</p>
         </div>
 
-        {/* Top row — action + stats */}
+        {/* Top row */}
         <div className="grid grid-cols-4 gap-4">
 
+          {/* Start session */}
           <button
             onClick={() => setSessionActive(true)}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-primary-700 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
@@ -277,48 +308,47 @@ export default function Scanning() {
               <ScanBarcode size={28} className="text-white" strokeWidth={2.5} />
             </div>
             <div className="text-center">
-              <p className="text-base font-black text-white uppercase tracking-widest">Start</p>
+              <p className="text-base font-black text-white uppercase tracking-widest">Start Scanning</p>
             </div>
           </button>
 
+          {/* Add Field */}
+          <button
+            onClick={() => setFieldDialogOpen(true)}
+            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
+              <Rows3 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Fields</p>
+            </div>
+          </button>
+
+          {/* Add Box Type */}
+          <button
+            onClick={() => setBoxDialogOpen(true)}
+            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
+              <Package2 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
+            </div>
+          </button>
+
+          {/* Scanned Today */}
           <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
               <Box size={26} className="text-primary-700" strokeWidth={2} />
             </div>
             <div>
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Total Boxes</p>
+              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Scanned Today</p>
               <p className="text-3xl font-black text-neutral-900 mt-0.5">
-                {statsLoading ? '—' : totalInRange.toLocaleString()}
+                {todayCount.toLocaleString()}
               </p>
-              <p className="text-xs text-neutral-400 mt-0.5">last 10 days</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-              <CalendarDays size={26} className="text-primary-700" strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Active Days</p>
-              <p className="text-3xl font-black text-neutral-900 mt-0.5">
-                {statsLoading ? '—' : activeDays}
-              </p>
-              <p className="text-xs text-neutral-400 mt-0.5">days with scans</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-              <TrendingUp size={26} className="text-primary-700" strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Peak Day</p>
-              <p className="text-3xl font-black text-neutral-900 mt-0.5">
-                {statsLoading ? '—' : peakDay.total > 0 ? peakDay.total : '—'}
-              </p>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                {peakDay.total > 0 ? peakDay.date : 'no data yet'}
-              </p>
+              <p className="text-xs text-neutral-400 mt-0.5">{today}</p>
             </div>
           </div>
 
@@ -400,19 +430,19 @@ export default function Scanning() {
           <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
             <div>
               <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
-              <p className="text-sm text-neutral-400">{entries.length} total entries</p>
+              <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
             </div>
             <div className="relative">
               <input
-                value={globalFilter}
-                onChange={e => setGlobalFilter(formatBarcodeFilter(e.target.value))}
+                value={entriesSearch}
+                onChange={e => setEntriesSearch(formatBarcodeFilter(e.target.value))}
                 placeholder="PPPP-BBBB"
                 maxLength={9}
                 className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider"
               />
-              {globalFilter && (
+              {entriesSearch && (
                 <button
-                  onClick={() => setGlobalFilter('')}
+                  onClick={() => setEntriesSearch('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
                 >
                   <X size={14} />
@@ -424,39 +454,108 @@ export default function Scanning() {
           {entriesLoading ? (
             <div className="flex items-center justify-center py-20 text-neutral-400 text-sm">Loading...</div>
           ) : (
-            <table className="w-full">
-              <thead>
-                {entryTable.getHeaderGroups().map(hg => (
-                  <tr key={hg.id} className="border-b-2 border-neutral-100 bg-neutral-50">
-                    {hg.headers.map(h => (
-                      <th key={h.id} className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {entryTable.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
-                    {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-6 py-4">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            <>
+              <table className="w-full">
+                <thead>
+                  {entryTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id} className="border-b-2 border-neutral-100 bg-neutral-50">
+                      {hg.headers.map(h => (
+                        <th key={h.id} className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {entryTable.getRowModel().rows.map(row => (
+                    <tr key={row.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id} className="px-6 py-4">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {entries.length === 0 && (
+                    <tr>
+                      <td colSpan={entryColumns.length} className="px-6 py-20 text-center text-neutral-400 text-sm">
+                        {entriesSearch ? 'No entries match your search.' : 'No harvest entries yet.'}
                       </td>
-                    ))}
-                  </tr>
-                ))}
-                {entries.length === 0 && (
-                  <tr>
-                    <td colSpan={entryColumns.length} className="px-6 py-20 text-center text-neutral-400 text-sm">
-                      No harvest entries yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {entriesPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t-2 border-neutral-100 bg-neutral-50">
+                  <p className="text-sm text-neutral-400">
+                    Showing{' '}
+                    <span className="font-semibold text-neutral-700">
+                      {(entriesPage - 1) * PAGE_SIZE + 1}–{Math.min(entriesPage * PAGE_SIZE, entriesTotal)}
+                    </span>
+                    {' '}of{' '}
+                    <span className="font-semibold text-neutral-700">{entriesTotal.toLocaleString()}</span>
+                    {' '}entries
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEntriesPage(p => Math.max(1, p - 1))}
+                      disabled={entriesPage === 1}
+                      className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={15} strokeWidth={2.5} />
+                    </button>
+
+                    {Array.from({ length: entriesPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === entriesPages || Math.abs(p - entriesPage) <= 2)
+                      .reduce<(number | 'gap')[]>((acc, p, i, arr) => {
+                        if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('gap')
+                        acc.push(p)
+                        return acc
+                      }, [])
+                      .map((p, i) =>
+                        p === 'gap' ? (
+                          <span key={`gap-${i}`} className="w-9 text-center text-neutral-400 text-sm">…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => setEntriesPage(p)}
+                            className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors
+                              ${entriesPage === p
+                                ? 'border-primary-700 bg-primary-700 text-white'
+                                : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'
+                              }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )
+                    }
+
+                    <button
+                      onClick={() => setEntriesPage(p => Math.min(entriesPages, p + 1))}
+                      disabled={entriesPage === entriesPages}
+                      className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight size={15} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
+
+        <FieldManagementDialog
+          open={fieldDialogOpen}
+          onClose={() => setFieldDialogOpen(false)}
+        />
+
+        <BoxManagementDialog
+          open={boxDialogOpen}
+          onClose={() => setBoxDialogOpen(false)}
+        />
 
         <Toast toasts={toasts} onRemove={removeToast} />
       </div>

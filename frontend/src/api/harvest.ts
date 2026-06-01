@@ -93,9 +93,16 @@ export interface FieldStat {
   total_kg:    number
 }
 
+export interface PaginatedEntries {
+  items:     HarvestEntry[]
+  total:     number
+  page:      number
+  page_size: number
+  pages:     number
+}
+
 export const checkBarcode       = (barcode: string)            => api.post<BarcodeCheckResponse>('/harvest/check', { barcode }).then(r => r.data)
 export const bulkScan           = (data: BulkScanRequest)      => api.post<BulkScanResult>('/harvest/scan', data).then(r => r.data)
-export const getEntries         = ()                           => api.get<HarvestEntry[]>('/harvest/').then(r => r.data)
 export const getHarvestOverview = ()                           => api.get<HarvestOverview>('/harvest/overview').then(r => r.data)
 export const getPickerStats     = ()                           => api.get<PickerStat[]>('/harvest/picker-stats').then(r => r.data)
 export const getDailyStats      = (from?: string, to?: string) => {
@@ -121,4 +128,11 @@ export const getFieldStats = (from?: string, to?: string) => {
   if (from) params.append('from_date', from)
   if (to)   params.append('to_date', to)
   return api.get<FieldStat[]>(`/harvest/field-stats?${params}`).then(r => r.data)
+}
+export const getEntries = (page = 1, pageSize = 25, search = '') => {
+  const params = new URLSearchParams()
+  params.append('page', String(page))
+  params.append('page_size', String(pageSize))
+  if (search) params.append('search', search)
+  return api.get<PaginatedEntries>(`/harvest/?${params}`).then(r => r.data)
 }
