@@ -2,24 +2,22 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
+
 from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
 from app.entities.picker import Picker
 from app.entities.box import Box
 from app.entities.field import Field
-from app.schemas.harvest_entry import (
-    DailyStatEntry,
-    DailyStatsResponse,
-)
+from app.schemas.harvest_entry import DailyStatEntry, DailyStatsResponse
 
-router = APIRouter(prefix="/harvest", tags=["harvest-stats"])
+router = APIRouter(prefix="/harvest/stats", tags=["harvest-stats"])
 
 
-@router.get("/stats", response_model=DailyStatsResponse)
+@router.get("/daily", response_model=DailyStatsResponse)
 async def get_daily_stats(
     from_date: date | None = None,
     to_date:   date | None = None,
-    db: AsyncSession = Depends(get_db),
+    db:        AsyncSession = Depends(get_db),
 ):
     query = (
         select(
@@ -47,25 +45,19 @@ async def get_daily_stats(
 @router.get("/overview")
 async def get_overview(db: AsyncSession = Depends(get_db)):
     picker_result = await db.execute(select(func.count()).select_from(Picker))
-    total_pickers = picker_result.scalar() or 0
-
     scan_result   = await db.execute(select(func.count()).select_from(HarvestEntry))
-    total_scanned = scan_result.scalar() or 0
-
-    kg_result = await db.execute(
+    kg_result     = await db.execute(
         select(func.sum(Box.net_weight_kg))
         .join(HarvestEntry, HarvestEntry.box_type_id == Box.box_id)
     )
-    total_kg = float(kg_result.scalar() or 0)
-
     return {
-        "total_pickers": total_pickers,
-        "total_scanned": total_scanned,
-        "total_kg":      round(total_kg, 3),
+        "total_pickers": picker_result.scalar() or 0,
+        "total_scanned": scan_result.scalar() or 0,
+        "total_kg":      round(float(kg_result.scalar() or 0), 3),
     }
 
 
-@router.get("/picker-stats")
+@router.get("/pickers")
 async def get_picker_stats(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(
@@ -81,24 +73,24 @@ async def get_picker_stats(db: AsyncSession = Depends(get_db)):
         .group_by(Picker.picker_id, Picker.first_name, Picker.last_name, Picker.origin_place)
         .order_by(func.count(HarvestEntry.box_number).desc())
     )
-    rows = result.all()
     return [
         {
-            "picker_id":    row.picker_id,
-            "first_name":   row.first_name,
-            "last_name":    row.last_name,
-            "origin_place": row.origin_place,
-            "total_boxes":  row.total_boxes or 0,
-            "total_kg":     round(float(row.total_kg or 0), 3),
+            "picker_id":    r.picker_id,
+            "first_name":   r.first_name,
+            "last_name":    r.last_name,
+            "origin_place": r.origin_place,
+            "total_boxes":  r.total_boxes or 0,
+            "total_kg":     round(float(r.total_kg or 0), 3),
         }
-        for row in rows
+        for r in result.all()
     ]
 
-@router.get("/picker-daily-stats")
+
+@router.get("/pickers/daily")
 async def get_picker_daily_stats(
     from_date: date | None = None,
     to_date:   date | None = None,
-    db: AsyncSession = Depends(get_db),
+    db:        AsyncSession = Depends(get_db),
 ):
     query = (
         select(
@@ -118,12 +110,10 @@ async def get_picker_daily_stats(
     if to_date:
         query = query.where(HarvestEntry.harvest_date <= to_date)
 
-    result = await db.execute(query)
-    rows   = result.all()
-
-    # group by picker
+    result  = await db.execute(query)
     pickers: dict[int, dict] = {}
-    for row in rows:
+
+    for row in result.all():
         if row.picker_id not in pickers:
             pickers[row.picker_id] = {
                 "picker_id":  row.picker_id,
@@ -135,21 +125,18 @@ async def get_picker_daily_stats(
 
     return [
         {
-            "picker_id":  p["picker_id"],
-            "first_name": p["first_name"],
-            "last_name":  p["last_name"],
-            "days":       p["days"],
-            "total_kg":   round(sum(p["days"].values()), 3),
+            **p,
+            "total_kg": round(sum(p["days"].values()), 3),
         }
         for p in pickers.values()
     ]
 
 
-@router.get("/picker-box-stats")
+@router.get("/pickers/boxes")
 async def get_picker_box_stats(
     from_date: date | None = None,
     to_date:   date | None = None,
-    db: AsyncSession = Depends(get_db),
+    db:        AsyncSession = Depends(get_db),
 ):
     query = (
         select(
@@ -167,14 +154,8 @@ async def get_picker_box_stats(
         .join(HarvestEntry, HarvestEntry.picker_id == Picker.picker_id)
         .join(Box, Box.box_id == HarvestEntry.box_type_id)
         .group_by(
-            Picker.picker_id,
-            Picker.first_name,
-            Picker.last_name,
-            Picker.national_id,
-            HarvestEntry.harvest_date,
-            Box.box_id,
-            Box.name,
-            Box.net_weight_kg,
+            Picker.picker_id, Picker.first_name, Picker.last_name, Picker.national_id,
+            HarvestEntry.harvest_date, Box.box_id, Box.name, Box.net_weight_kg,
         )
         .order_by(Picker.picker_id, HarvestEntry.harvest_date, Box.box_id)
     )
@@ -183,29 +164,25 @@ async def get_picker_box_stats(
     if to_date:
         query = query.where(HarvestEntry.harvest_date <= to_date)
 
-    result = await db.execute(query)
-    rows   = result.all()
-
+    result  = await db.execute(query)
     pickers: dict[int, dict] = {}
-    for row in rows:
+
+    for row in result.all():
         if row.picker_id not in pickers:
             pickers[row.picker_id] = {
-                "picker_id":        row.picker_id,
-                "first_name":       row.first_name,
-                "last_name":        row.last_name,
-                "national_id":      row.national_id,
-                "days":             {},
-                "total_kg":         0.0,
-                "total_boxes":      0,
-                "total_box_types":  {},  # box_name -> count
+                "picker_id":       row.picker_id,
+                "first_name":      row.first_name,
+                "last_name":       row.last_name,
+                "national_id":     row.national_id,
+                "days":            {},
+                "total_kg":        0.0,
+                "total_boxes":     0,
+                "total_box_types": {},
             }
 
         day_str = str(row.harvest_date)
         if day_str not in pickers[row.picker_id]["days"]:
-            pickers[row.picker_id]["days"][day_str] = {
-                "kg":        0.0,
-                "box_types": {},
-            }
+            pickers[row.picker_id]["days"][day_str] = {"kg": 0.0, "box_types": {}}
 
         pickers[row.picker_id]["days"][day_str]["kg"] += float(row.daily_kg)
         pickers[row.picker_id]["days"][day_str]["box_types"][row.box_name] = {
@@ -215,10 +192,7 @@ async def get_picker_box_stats(
         }
         pickers[row.picker_id]["total_kg"]    += float(row.daily_kg)
         pickers[row.picker_id]["total_boxes"] += row.box_count
-
-        # accumulate total box type counts
-        if row.box_name not in pickers[row.picker_id]["total_box_types"]:
-            pickers[row.picker_id]["total_box_types"][row.box_name] = 0
+        pickers[row.picker_id]["total_box_types"].setdefault(row.box_name, 0)
         pickers[row.picker_id]["total_box_types"][row.box_name] += row.box_count
 
     for p in pickers.values():
@@ -228,11 +202,12 @@ async def get_picker_box_stats(
 
     return list(pickers.values())
 
-@router.get("/field-stats")
+
+@router.get("/fields")
 async def get_field_stats(
     from_date: date | None = None,
     to_date:   date | None = None,
-    db: AsyncSession = Depends(get_db),
+    db:        AsyncSession = Depends(get_db),
 ):
     query = (
         select(
@@ -253,15 +228,13 @@ async def get_field_stats(
         query = query.where(HarvestEntry.harvest_date <= to_date)
 
     result = await db.execute(query)
-    rows   = result.all()
-
     return [
         {
-            "field_id":    row.field_id,
-            "field_name":  row.field_name,
-            "description": row.description,
-            "total_boxes": row.total_boxes or 0,
-            "total_kg":    round(float(row.total_kg or 0), 3),
+            "field_id":    r.field_id,
+            "field_name":  r.field_name,
+            "description": r.description,
+            "total_boxes": r.total_boxes or 0,
+            "total_kg":    round(float(r.total_kg or 0), 3),
         }
-        for row in rows
+        for r in result.all()
     ]

@@ -2,6 +2,8 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: 'http://localhost:8000' })
 
+// ── request / response types ───────────────────────────────────────────
+
 export interface HarvestEntry {
   field_id:     number
   picker_id:    number
@@ -31,6 +33,16 @@ export interface BulkScanResult {
   problems: BarcodeCheckResponse[]
 }
 
+export interface PaginatedEntries {
+  items:     HarvestEntry[]
+  total:     number
+  page:      number
+  page_size: number
+  pages:     number
+}
+
+// ── stats types ────────────────────────────────────────────────────────
+
 export interface DailyStatEntry {
   harvest_date: string
   box_type_id:  number
@@ -57,14 +69,6 @@ export interface PickerStat {
   total_kg:     number
 }
 
-export interface PickerDailyStat {
-  picker_id:  number
-  first_name: string
-  last_name:  string
-  days:       Record<string, number>
-  total_kg:   number
-}
-
 export interface DayBoxBreakdown {
   kg:        number
   box_types: Record<string, {
@@ -81,7 +85,7 @@ export interface PickerBoxStat {
   national_id:     string
   total_kg:        number
   total_boxes:     number
-  total_box_types: Record<string, number>  // box_name -> count
+  total_box_types: Record<string, number>
   days:            Record<string, DayBoxBreakdown>
 }
 
@@ -93,46 +97,46 @@ export interface FieldStat {
   total_kg:    number
 }
 
-export interface PaginatedEntries {
-  items:     HarvestEntry[]
-  total:     number
-  page:      number
-  page_size: number
-  pages:     number
+// ── helpers ────────────────────────────────────────────────────────────
+
+function dateParams(from?: string, to?: string): URLSearchParams {
+  const p = new URLSearchParams()
+  if (from) p.append('from_date', from)
+  if (to)   p.append('to_date',   to)
+  return p
 }
 
-export const checkBarcode       = (barcode: string)            => api.post<BarcodeCheckResponse>('/harvest/check', { barcode }).then(r => r.data)
-export const bulkScan           = (data: BulkScanRequest)      => api.post<BulkScanResult>('/harvest/scan', data).then(r => r.data)
-export const getHarvestOverview = ()                           => api.get<HarvestOverview>('/harvest/overview').then(r => r.data)
-export const getPickerStats     = ()                           => api.get<PickerStat[]>('/harvest/picker-stats').then(r => r.data)
-export const getDailyStats      = (from?: string, to?: string) => {
-  const params = new URLSearchParams()
-  if (from) params.append('from_date', from)
-  if (to)   params.append('to_date', to)
-  return api.get<DailyStatsResponse>(`/harvest/stats?${params}`).then(r => r.data)
-}
-export const getPickerDailyStats = (from?: string, to?: string) => {
-  const params = new URLSearchParams()
-  if (from) params.append('from_date', from)
-  if (to)   params.append('to_date', to)
-  return api.get<PickerDailyStat[]>(`/harvest/picker-daily-stats?${params}`).then(r => r.data)
-}
-export const getPickerBoxStats = (from?: string, to?: string) => {
-  const params = new URLSearchParams()
-  if (from) params.append('from_date', from)
-  if (to)   params.append('to_date', to)
-  return api.get<PickerBoxStat[]>(`/harvest/picker-box-stats?${params}`).then(r => r.data)
-}
-export const getFieldStats = (from?: string, to?: string) => {
-  const params = new URLSearchParams()
-  if (from) params.append('from_date', from)
-  if (to)   params.append('to_date', to)
-  return api.get<FieldStat[]>(`/harvest/field-stats?${params}`).then(r => r.data)
-}
+// ── scan endpoints ─────────────────────────────────────────────────────
+
+export const checkBarcode = (barcode: string) =>
+  api.post<BarcodeCheckResponse>('/harvest/check', { barcode }).then(r => r.data)
+
+export const bulkScan = (data: BulkScanRequest) =>
+  api.post<BulkScanResult>('/harvest/commit', data).then(r => r.data)
+
+// ── entry listing ──────────────────────────────────────────────────────
+
 export const getEntries = (page = 1, pageSize = 25, search = '') => {
   const params = new URLSearchParams()
-  params.append('page', String(page))
+  params.append('page',      String(page))
   params.append('page_size', String(pageSize))
   if (search) params.append('search', search)
-  return api.get<PaginatedEntries>(`/harvest/?${params}`).then(r => r.data)
+  return api.get<PaginatedEntries>(`/harvest/entries?${params}`).then(r => r.data)
 }
+
+// ── stats endpoints ────────────────────────────────────────────────────
+
+export const getHarvestOverview = () =>
+  api.get<HarvestOverview>('/harvest/stats/overview').then(r => r.data)
+
+export const getDailyStats = (from?: string, to?: string) =>
+  api.get<DailyStatsResponse>(`/harvest/stats/daily?${dateParams(from, to)}`).then(r => r.data)
+
+export const getPickerStats = () =>
+  api.get<PickerStat[]>('/harvest/stats/pickers').then(r => r.data)
+
+export const getPickerBoxStats = (from?: string, to?: string) =>
+  api.get<PickerBoxStat[]>(`/harvest/stats/pickers/boxes?${dateParams(from, to)}`).then(r => r.data)
+
+export const getFieldStats = (from?: string, to?: string) =>
+  api.get<FieldStat[]>(`/harvest/stats/fields?${dateParams(from, to)}`).then(r => r.data)

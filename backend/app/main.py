@@ -5,8 +5,9 @@ from app.routers.picker import router as pickers_router
 from app.routers.field import router as fields_router
 from app.routers.box import router as boxes_router
 from app.routers.print_batch import router as print_batches_router
-from app.routers.harvest_scan import router as harvest_scan_router
-from app.routers.harvest_stats import router as harvest_stats_router
+from app.routers.harvest_scan    import router as harvest_scan_router
+from app.routers.harvest_entries import router as harvest_entries_router
+from app.routers.harvest_stats   import router as harvest_stats_router
 
 
 @asynccontextmanager
@@ -29,6 +30,7 @@ app.include_router(boxes_router)
 app.include_router(print_batches_router)
 app.include_router(harvest_scan_router)
 app.include_router(harvest_stats_router)
+app.include_router(harvest_entries_router)
 
 
 @app.get("/health")
