@@ -1,28 +1,15 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns'
+import { format, parseISO, eachDayOfInterval } from 'date-fns'
 import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats, getFieldStats } from '../api/harvest'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { CalendarDays, ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight, Box } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
-const PAGE_SIZE   = 10
-const PIE_COLORS  = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
-
-function HeatmapCell({ count, max }: { count: number; max: number }) {
-  const intensity = max > 0 ? count / max : 0
-  const bg =
-    intensity === 0  ? 'bg-neutral-100' :
-    intensity < 0.25 ? 'bg-primary-100' :
-    intensity < 0.5  ? 'bg-primary-200' :
-    intensity < 0.75 ? 'bg-primary-400' :
-                       'bg-primary-700'
-  return (
-    <div className={`w-5 h-5 rounded-sm ${bg} transition-all duration-500 cursor-default`} title={`${count} boxes`} />
-  )
-}
+const PAGE_SIZE  = 10
+const PIE_COLORS = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
 
 export default function Dashboard() {
 
@@ -30,17 +17,23 @@ export default function Dashboard() {
   const [pickerPage, setPickerPage]         = useState(1)
   const [sortBy, setSortBy]                 = useState<'total_boxes' | 'total_kg'>('total_boxes')
   const [sortDir, setSortDir]               = useState<'desc' | 'asc'>('desc')
-  const [dailyFrom, setDailyFrom]           = useState(fmt(subDays(new Date(), 13)))
+  const [dailyFrom, setDailyFrom]           = useState(fmt(new Date()))
   const [dailyTo, setDailyTo]               = useState(fmt(new Date()))
   const [dailyMaximized, setDailyMaximized] = useState(false)
   const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
   const [dailySearch, setDailySearch]       = useState('')
 
-  const { data: overview,         isLoading: overviewLoading     } = useQuery({ queryKey: ['harvest-overview'],                    queryFn: getHarvestOverview })
-  const { data: allStatsData,     isLoading: heatmapLoading      } = useQuery({ queryKey: ['harvest-stats-all'],                   queryFn: () => getDailyStats() })
-  const { data: pickerStats = [], isLoading: pickerStatsLoading  } = useQuery({ queryKey: ['picker-stats'],                       queryFn: getPickerStats })
-  const { data: pickerDailyStats = [], isLoading: dailyLoading   } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo], queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
-  const { data: fieldStats = [],  isLoading: fieldStatsLoading   } = useQuery({ queryKey: ['field-stats'],                        queryFn: () => getFieldStats() })
+  const today = fmt(new Date())
+
+  const { data: overview,              isLoading: overviewLoading    } = useQuery({ queryKey: ['harvest-overview'],                     queryFn: getHarvestOverview })
+  const { data: pickerStats = [],      isLoading: pickerStatsLoading } = useQuery({ queryKey: ['picker-stats'],                        queryFn: getPickerStats })
+  const { data: pickerDailyStats = [], isLoading: dailyLoading       } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo], queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
+  const { data: fieldStats = [],       isLoading: fieldStatsLoading  } = useQuery({ queryKey: ['field-stats'],                         queryFn: () => getFieldStats() })
+  const { data: todayStats = [],       isLoading: todayLoading       } = useQuery({ queryKey: ['picker-box-stats-today', today],        queryFn: () => getPickerBoxStats(today, today) })
+
+  const pickersToday = todayStats.length
+  const boxesToday   = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
+  const kgToday      = Math.round(todayStats.reduce((sum, p) => sum + p.total_kg, 0) * 10) / 10
 
   const dailyColumns = useMemo(() => {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
@@ -57,61 +50,21 @@ export default function Dashboard() {
   }, [pickerDailyStats, dailySearch])
 
   const handleSort = (col: 'total_boxes' | 'total_kg') => {
-    if (sortBy === col) {
-      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    } else {
-      setSortBy(col)
-      setSortDir('desc')
-    }
+    if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortBy(col); setSortDir('desc') }
   }
 
   const filteredPickers = useMemo(() => {
     const filtered = !pickerSearch.trim()
       ? [...pickerStats]
-      : pickerStats.filter(p =>
-          `${p.first_name} ${p.last_name}`.toLowerCase().includes(pickerSearch.toLowerCase())
-        )
-    return filtered.sort((a, b) =>
-      sortDir === 'desc' ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy]
-    )
+      : pickerStats.filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(pickerSearch.toLowerCase()))
+    return filtered.sort((a, b) => sortDir === 'desc' ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy])
   }, [pickerStats, pickerSearch, sortBy, sortDir])
 
   useEffect(() => { setPickerPage(1) }, [pickerSearch, sortBy, sortDir])
 
   const pickerPageCount  = Math.ceil(filteredPickers.length / PAGE_SIZE)
   const paginatedPickers = filteredPickers.slice((pickerPage - 1) * PAGE_SIZE, pickerPage * PAGE_SIZE)
-
-  const heatmapRange = useMemo(() => {
-    if (!allStatsData?.stats.length) return null
-    const dates    = allStatsData.stats.map(s => parseISO(s.harvest_date))
-    const earliest = new Date(Math.min(...dates.map(d => d.getTime())))
-    const latest   = new Date(Math.max(...dates.map(d => d.getTime())))
-    return { start: startOfMonth(earliest), end: endOfMonth(latest) }
-  }, [allStatsData])
-
-  const heatmapData = useMemo(() => {
-    if (!allStatsData || !heatmapRange) return []
-    return eachDayOfInterval(heatmapRange).map(day => {
-      const dayStr   = fmt(day)
-      const dayTotal = allStatsData.stats.filter(s => s.harvest_date === dayStr).reduce((sum, s) => sum + s.count, 0)
-      return { date: dayStr, label: format(day, 'd'), monthLabel: format(day, 'MMM yyyy'), count: dayTotal }
-    })
-  }, [allStatsData, heatmapRange])
-
-  const heatmapMax = useMemo(() => Math.max(...heatmapData.map(d => d.count), 1), [heatmapData])
-
-  const heatmapByMonth = useMemo(() => {
-    const months: { label: string; days: typeof heatmapData }[] = []
-    heatmapData.forEach(day => {
-      const last = months[months.length - 1]
-      if (!last || last.label !== day.monthLabel) {
-        months.push({ label: day.monthLabel, days: [day] })
-      } else {
-        last.days.push(day)
-      }
-    })
-    return months
-  }, [heatmapData])
 
   const SortIcon = ({ col }: { col: 'total_boxes' | 'total_kg' }) => {
     if (sortBy !== col) return <span className="text-neutral-300 text-xs">↕</span>
@@ -124,101 +77,87 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
+        <p className="text-sm text-neutral-400 mt-1">{format(new Date(), 'EEEE, MMMM d yyyy')}</p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-            <Users size={30} className="text-primary-700" strokeWidth={2} />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
-            <p className="text-4xl font-black text-neutral-900 mt-1">
-              {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
-            </p>
-          </div>
+{/* ── TODAY HERO ─────────────────────────────────────────────── */}
+      <div className="bg-primary-700 rounded-2xl overflow-hidden">
+
+        <div className="px-8 pt-7 pb-0 flex items-center gap-3">
+          <p className="text-l font-bold text-white uppercase tracking-[0.3em]">Today's Harvest</p>
         </div>
 
-        <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-            <ScanBarcode size={30} className="text-primary-700" strokeWidth={2} />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
-            <p className="text-4xl font-black text-neutral-900 mt-1">
-              {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
-            </p>
-          </div>
-        </div>
+        <div className="grid grid-cols-3 mt-2">
 
-        <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-8 flex items-center gap-6">
-          <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-            <Weight size={30} className="text-primary-700" strokeWidth={2} />
+          <div className="flex flex-col px-8 py-8 border-r border-primary-500">
+            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
+            <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+              {todayLoading ? '—' : pickersToday}
+            </span>
           </div>
-          <div>
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
-            <p className="text-4xl font-black text-neutral-900 mt-1">
-              {overviewLoading ? '—' : overview ? `${overview.total_kg.toLocaleString()} kg` : '—'}
-            </p>
+
+          <div className="flex flex-col px-8 py-8 border-r border-primary-500">
+            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
+            <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+              {todayLoading ? '—' : boxesToday.toLocaleString()}
+            </span>
           </div>
+
+          <div className="flex flex-col px-8 py-8">
+            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
+            <div className="flex items-baseline gap-4">
+              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                {todayLoading ? '—' : kgToday.toLocaleString()}
+              </span>
+              <span className="text-4xl font-black text-primary-100">kg</span>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* Heatmap + Field pie */}
+      {/* ── ALL-TIME STATS + FIELD PIE ──────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4 items-stretch">
 
-        {/* Heatmap */}
+        {/* All-time stats */}
         <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
-          <div className="mb-6">
-            <p className="text-xl font-bold text-neutral-900">Activity Heatmap</p>
-            <p className="text-sm text-neutral-400">
-              {heatmapRange
-                ? `${format(heatmapRange.start, 'MMM yyyy')} — ${format(heatmapRange.end, 'MMM yyyy')}`
-                : 'Boxes scanned per day — all time'
-              }
-            </p>
-          </div>
-          {heatmapLoading ? (
-            <div className="flex items-center justify-center py-12 text-neutral-400 text-sm">Loading...</div>
-          ) : heatmapData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2">
-              <CalendarDays size={32} className="text-neutral-200" />
-              <p className="text-neutral-400 text-sm">No scan data yet</p>
+          <p className="text-xl font-bold text-neutral-900 mb-1">All Time</p>
+          <p className="text-sm text-neutral-400 mb-6">Cumulative harvest totals</p>
+
+          <div className="flex gap-4 flex-1">
+
+            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
+              <p className="text-6xl font-black text-neutral-400 leading-none">
+                {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
+              </p>
             </div>
-          ) : (
-            <>
-              <div className="flex flex-col gap-5">
-                {heatmapByMonth.map(month => (
-                  <div key={month.label}>
-                    <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">{month.label}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {month.days.map(day => (
-                        <div key={day.date} className="flex flex-col items-center gap-1">
-                          <HeatmapCell count={day.count} max={heatmapMax} />
-                          <span className="text-[9px] text-neutral-300 font-medium leading-none">{day.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+
+            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
+              <p className="text-6xl font-black text-neutral-400 leading-none">
+                {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
+              </p>
+            </div>
+
+            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-6xl font-black text-neutral-400 leading-none">
+                  {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
+                </p>
+                <span className="text-2xl font-black text-neutral-400">kg</span>
               </div>
-              <div className="flex items-center gap-2 mt-6">
-                <span className="text-xs text-neutral-400">Less</span>
-                {['bg-neutral-100', 'bg-primary-100', 'bg-primary-200', 'bg-primary-400', 'bg-primary-700'].map(c => (
-                  <div key={c} className={`w-5 h-5 rounded-sm ${c}`} />
-                ))}
-                <span className="text-xs text-neutral-400">More</span>
-              </div>
-            </>
-          )}
+            </div>
+
+          </div>
         </div>
 
         {/* Field pie */}
         <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
           <div className="mb-6">
             <p className="text-xl font-bold text-neutral-900">By Field</p>
-            <p className="text-sm text-neutral-400">kg harvested per field — all time</p>
+            <p className="text-sm text-neutral-400">kg harvested — all time</p>
           </div>
           {fieldStatsLoading ? (
             <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
@@ -228,41 +167,22 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="flex flex-col flex-1 gap-4">
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie
-                    data={fieldStats}
-                    dataKey="total_kg"
-                    nameKey="field_name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    isAnimationActive
-                    animationBegin={0}
-                    animationDuration={800}
-                    animationEasing="ease-out"
-                  >
-                    {fieldStats.map((_, idx) => (
-                      <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                    ))}
+                  <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
+                    {fieldStats.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip
-                    formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']}
-                    contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }}
-                  />
+                  <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-2">
                 {fieldStats.map((f, idx) => {
                   const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
                   const pct   = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
-                  const color = PIE_COLORS[idx % PIE_COLORS.length]
                   return (
                     <div key={f.field_id} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
                         <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -278,7 +198,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Picker stats table */}
+      {/* ── PICKER HARVEST TABLE ────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b-2 border-neutral-100">
           <div>
@@ -293,10 +213,7 @@ export default function Dashboard() {
               className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
             />
             {pickerSearch && (
-              <button
-                onClick={() => setPickerSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
-              >
+              <button onClick={() => setPickerSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
                 <X size={14} />
               </button>
             )}
@@ -312,97 +229,51 @@ export default function Dashboard() {
                 <tr className="border-b-2 border-neutral-100 bg-neutral-50">
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">ID</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Picker</th>
-                  <th
-                    className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
-                    onClick={() => handleSort('total_boxes')}
-                  >
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-neutral-800 transition-colors" onClick={() => handleSort('total_boxes')}>
                     <div className="flex items-center gap-1">Boxes <SortIcon col="total_boxes" /></div>
                   </th>
-                  <th
-                    className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none transition-colors hover:text-neutral-800"
-                    onClick={() => handleSort('total_kg')}
-                  >
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-neutral-800 transition-colors" onClick={() => handleSort('total_kg')}>
                     <div className="flex items-center gap-1">Total kg <SortIcon col="total_kg" /></div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Origin</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedPickers.map((p, idx) => (
-                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
-                        {p.total_boxes.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>
-                        {p.total_kg.toLocaleString()} kg
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span>
-                    </td>
+                {paginatedPickers.map((p) => (
+                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors" style={{}}>
+                    <td className="px-6 py-4"><span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span></td>
+                    <td className="px-6 py-4"><span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span></td>
+                    <td className="px-6 py-4"><span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>{p.total_boxes.toLocaleString()}</span></td>
+                    <td className="px-6 py-4"><span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>{p.total_kg.toLocaleString()} kg</span></td>
+                    <td className="px-6 py-4"><span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span></td>
                   </tr>
                 ))}
                 {filteredPickers.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">
-                      {pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}
-                    </td>
-                  </tr>
+                  <tr><td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">{pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}</td></tr>
                 )}
               </tbody>
             </table>
 
-            {/* Pagination */}
             {pickerPageCount > 1 && (
               <div className="flex items-center justify-between px-6 py-4 border-t-2 border-neutral-100 bg-neutral-50">
                 <p className="text-sm text-neutral-400">
-                  Showing{' '}
-                  <span className="font-semibold text-neutral-700">
-                    {(pickerPage - 1) * PAGE_SIZE + 1}–{Math.min(pickerPage * PAGE_SIZE, filteredPickers.length)}
-                  </span>
-                  {' '}of{' '}
-                  <span className="font-semibold text-neutral-700">{filteredPickers.length}</span>
-                  {' '}pickers
+                  Showing <span className="font-semibold text-neutral-700">{(pickerPage - 1) * PAGE_SIZE + 1}–{Math.min(pickerPage * PAGE_SIZE, filteredPickers.length)}</span> of <span className="font-semibold text-neutral-700">{filteredPickers.length}</span> pickers
                 </p>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPickerPage(p => Math.max(1, p - 1))}
-                    disabled={pickerPage === 1}
-                    className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft size={15} strokeWidth={2.5} />
-                  </button>
-                  {Array.from({ length: pickerPageCount }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setPickerPage(page)}
-                      className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors
-                        ${pickerPage === page
-                          ? 'border-primary-700 bg-primary-700 text-white'
-                          : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'
-                        }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setPickerPage(p => Math.min(pickerPageCount, p + 1))}
-                    disabled={pickerPage === pickerPageCount}
-                    className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight size={15} strokeWidth={2.5} />
-                  </button>
+                  <button onClick={() => setPickerPage(p => Math.max(1, p - 1))} disabled={pickerPage === 1} className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronLeft size={15} strokeWidth={2.5} /></button>
+                  {Array.from({ length: pickerPageCount }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === pickerPageCount || Math.abs(p - pickerPage) <= 2)
+                    .reduce<(number | 'gap')[]>((acc, p, i, arr) => {
+                      if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('gap')
+                      acc.push(p)
+                      return acc
+                    }, [])
+                    .map((p, i) => p === 'gap'
+                      ? <span key={`gap-${i}`} className="w-9 text-center text-neutral-400 text-sm">…</span>
+                      : <button key={p} onClick={() => setPickerPage(p)} className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors ${pickerPage === p ? 'border-primary-700 bg-primary-700 text-white' : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'}`}>{p}</button>
+                    )
+                  }
+                  <button onClick={() => setPickerPage(p => Math.min(pickerPageCount, p + 1))} disabled={pickerPage === pickerPageCount} className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={15} strokeWidth={2.5} /></button>
                 </div>
               </div>
             )}
@@ -410,10 +281,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Daily harvest table */}
-      <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden
-        ${dailyMaximized ? 'fixed inset-4 z-50 rounded-2xl flex flex-col' : 'rounded-2xl'}`}
-      >
+      {/* ── DAILY HARVEST TABLE ─────────────────────────────────────── */}
+      <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-4 z-50 rounded-2xl flex flex-col' : 'rounded-2xl'}`}>
         <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
           <div className="shrink-0">
             <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
@@ -435,26 +304,11 @@ export default function Dashboard() {
           <div className="flex flex-col gap-0.5">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker</label>
             <div className="relative">
-              <input
-                value={dailySearch}
-                onChange={e => setDailySearch(e.target.value)}
-                placeholder="Search picker..."
-                className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
-              />
-              {dailySearch && (
-                <button
-                  onClick={() => setDailySearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
-                >
-                  <X size={14} />
-                </button>
-              )}
+              <input value={dailySearch} onChange={e => setDailySearch(e.target.value)} placeholder="Search picker..." className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8" />
+              {dailySearch && <button onClick={() => setDailySearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"><X size={14} /></button>}
             </div>
           </div>
-          <button
-            onClick={() => setDailyMaximized(m => !m)}
-            className="ml-auto p-2 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
-          >
+          <button onClick={() => setDailyMaximized(m => !m)} className="ml-auto p-2 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors">
             {dailyMaximized ? <Minimize2 size={16} strokeWidth={2.5} /> : <Maximize2 size={16} strokeWidth={2.5} />}
           </button>
         </div>
@@ -466,7 +320,6 @@ export default function Dashboard() {
         ) : (
           <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden' : ''}`}>
 
-            {/* Frozen left */}
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
@@ -477,48 +330,30 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDailyStats.map(p => {
-                    return (
-                      <tr
-                        key={p.picker_id}
-                        onMouseEnter={() => setHoveredPicker(p.picker_id)}
-                        onMouseLeave={() => setHoveredPicker(null)}
-                        className="border-b border-neutral-100 transition-colors"
-                        style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span
-                          className="font-semibold text-neutral-800 block cursor-default"
-                          title={`${p.national_id.slice(0, 2)}-${p.national_id.slice(2, 5)}-${p.national_id.slice(5, 11)}`}
-                          >
-                          {p.first_name} {p.last_name}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-mono font-bold text-primary-700 block pt-px">{p.total_kg.toLocaleString()} kg</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono font-bold text-neutral-700 whitespace-nowrap">
-                              {p.total_boxes.toLocaleString()}
-                            </span>
-                            <div className="flex flex-col gap-0.5">
-                              {Object.entries(p.total_box_types).map(([boxName, count]) => (
-                                <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">
-                                  {boxName}: {count}
-                                </span>
-                              ))}
-                            </div>
+                  {filteredDailyStats.map(p => (
+                    <tr key={p.picker_id} onMouseEnter={() => setHoveredPicker(p.picker_id)} onMouseLeave={() => setHoveredPicker(null)} className="border-b border-neutral-100 transition-colors" style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}>
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <span className="font-semibold text-neutral-800 block cursor-default" title={`${p.national_id.slice(0,2)}-${p.national_id.slice(2,5)}-${p.national_id.slice(5,11)}`}>{p.first_name} {p.last_name}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <span className="font-mono font-bold text-primary-700 block">{p.total_kg.toLocaleString()} kg</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap align-top">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-neutral-700 whitespace-nowrap">{p.total_boxes.toLocaleString()}</span>
+                          <div className="flex flex-col gap-0.5">
+                            {Object.entries(p.total_box_types).map(([boxName, count]) => (
+                              <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">{boxName}: {count}</span>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Scrollable daily columns */}
             <div className={`flex-1 overflow-x-auto ${dailyMaximized ? 'overflow-y-auto' : ''}`}>
               <table>
                 <thead>
@@ -532,33 +367,17 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {filteredDailyStats.map(p => (
-                    <tr
-                      key={p.picker_id}
-                      onMouseEnter={() => setHoveredPicker(p.picker_id)}
-                      onMouseLeave={() => setHoveredPicker(null)}
-                      className="border-b border-neutral-100 transition-colors"
-                      style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
-                    >
+                    <tr key={p.picker_id} onMouseEnter={() => setHoveredPicker(p.picker_id)} onMouseLeave={() => setHoveredPicker(null)} className="border-b border-neutral-100 transition-colors" style={{ backgroundColor: hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}>
                       {dailyColumns.map(day => {
                         const dayData = p.days[day]
-                        if (!dayData || dayData.kg === 0) {
-                          return (
-                            <td key={day} className="px-4 py-4 whitespace-nowrap align-middle">
-                              <span className="text-neutral-200 text-sm">—</span>
-                            </td>
-                          )
-                        }
+                        if (!dayData || dayData.kg === 0) return <td key={day} className="px-4 py-4 whitespace-nowrap align-middle"><span className="text-neutral-200 text-sm">—</span></td>
                         return (
                           <td key={day} className="px-4 py-4 whitespace-nowrap align-top">
                             <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm font-bold text-neutral-800 block">
-                                {dayData.kg.toLocaleString()} kg
-                              </span>
+                              <span className="font-mono text-sm font-bold text-neutral-800">{dayData.kg.toLocaleString()} kg</span>
                               <div className="flex flex-col gap-0.5">
                                 {Object.entries(dayData.box_types).map(([boxName, info]) => (
-                                  <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">
-                                    {boxName}: {info.count}
-                                  </span>
+                                  <span key={boxName} className="text-xs text-neutral-400 font-mono whitespace-nowrap">{boxName}: {info.count}</span>
                                 ))}
                               </div>
                             </div>
@@ -574,6 +393,8 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {dailyMaximized && <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDailyMaximized(false)} />}
 
     </div>
   )
