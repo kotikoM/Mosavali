@@ -72,12 +72,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
 
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
-        <p className="text-sm text-neutral-400 mt-1">{format(new Date(), 'EEEE, MMMM d yyyy')}</p>
       </div>
 
 {/* ── TODAY HERO ─────────────────────────────────────────────── */}
