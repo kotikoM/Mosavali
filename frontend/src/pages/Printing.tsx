@@ -99,9 +99,6 @@ export default function Printing() {
     setSelectedPickers(new Set())
   }
 
-  const formatNationalId = (id: string) =>
-    `${id.slice(0, 2)}-${id.slice(2, 5)}-${id.slice(5, 11)}`
-
   const columns = useMemo<ColumnDef<Picker>[]>(() => [
     {
       id: 'select',
@@ -162,7 +159,7 @@ export default function Printing() {
       enableColumnFilter: true,
       cell: info => (
         <span className="font-mono text-sm text-neutral-600">
-          {formatNationalId(info.getValue<string>())}
+          {info.getValue<string>()}
         </span>
       ),
     },
@@ -195,7 +192,6 @@ export default function Printing() {
 
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold text-neutral-800">Printing</h1>
-        <p className="text-sm text-neutral-500">Select pickers and queue sticker batches for printing.</p>
       </div>
 
       <div className="flex gap-6 items-start">

@@ -96,9 +96,6 @@ export default function Pickers() {
     setDialogOpen(true)
   }
 
-  const formatNationalId = (id: string) =>
-    `${id.slice(0, 2)}-${id.slice(2, 5)}-${id.slice(5, 11)}`
-
   const columns = useMemo<ColumnDef<Picker>[]>(() => [
     {
       header: 'ID',
@@ -115,7 +112,7 @@ export default function Pickers() {
     {
       header: 'National ID',
       accessorKey: 'national_id',
-      cell: info => <span className="font-mono text-neutral-800">{formatNationalId(info.getValue<string>())}</span>,
+      cell: info => <span className="font-mono text-neutral-800">{info.getValue<string>()}</span>,
     },
     {
       header: 'Phone',
@@ -173,9 +170,6 @@ export default function Pickers() {
       <div className="flex flex-col gap-4">
         <div>
         <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
-        <p className="mt-2 text-sm text-neutral-500">
-              Add, modify or delete harvesters.
-        </p>
         </div>
         <button
           onClick={handleOpenCreate}

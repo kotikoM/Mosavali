@@ -293,7 +293,6 @@ export default function Scanning() {
           <h1 className="text-3xl font-bold text-neutral-800">
             Scanning
           </h1>
-          <p className="mt-2 text-sm text-neutral-500">Scan harvest entries.</p>
         </div>
 
         {/* Top row */}

@@ -124,7 +124,6 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
-        <p className="mt-1 text-sm text-neutral-500">Harvest operations overview.</p>
       </div>
 
       {/* Stat cards */}
