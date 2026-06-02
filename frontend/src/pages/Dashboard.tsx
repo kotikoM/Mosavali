@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, eachDayOfInterval } from 'date-fns'
 import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats, getFieldStats } from '../api/harvest'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight, Box } from 'lucide-react'
+import { ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
@@ -83,57 +83,55 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
       </div>
 
-      {/* ── DAY HERO ─────────────────────────────────────────────── */}
-      <div className="bg-primary-700 rounded-2xl overflow-hidden">
+        {/* ── DAY HERO ─────────────────────────────────────────────── */}
+        <div className="bg-primary-700 rounded-2xl overflow-hidden">
 
-        <div className="px-8 pt-7 pb-0 flex items-center gap-6">
-          <div>
-            <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
-          </div>
-
-          <div className="w-px h-8 bg-primary-500 shrink-0" />
-
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold text-primary-200 uppercase tracking-widest">Date</span>
-            <DatePicker
-              value={heroDate}
-              onChange={setHeroDate}
-              className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 mt-2">
-
-          <div className="flex flex-col px-8 py-8 border-r border-primary-500">
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
-            <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-              {todayLoading ? '—' : pickersToday}
-            </span>
-            <span className="text-base font-medium text-primary-200 mt-4">pickers on field</span>
-          </div>
-
-          <div className="flex flex-col px-8 py-8 border-r border-primary-500">
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
-            <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-              {todayLoading ? '—' : boxesToday.toLocaleString()}
-            </span>
-            <span className="text-base font-medium text-primary-200 mt-4">boxes committed</span>
-          </div>
-
-          <div className="flex flex-col px-8 py-8">
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
-            <div className="flex items-baseline gap-4">
-              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-                {todayLoading ? '—' : kgToday.toLocaleString()}
-              </span>
-              <span className="text-4xl font-black text-primary-100">kg</span>
+          <div className="px-8 pt-7 pb-0 flex items-center gap-6">
+            <div>
+              <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
             </div>
-            <span className="text-base font-medium text-primary-200 mt-4">net weight</span>
+
+            <div className="w-px h-8 bg-primary-500 shrink-0" />
+
+            <div className="flex flex-col gap-1">
+              <DatePicker
+                value={heroDate}
+                onChange={setHeroDate}
+                className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
+              />
+            </div>
           </div>
 
+          <div className="grid grid-cols-3 mt-2">
+
+            <div className="relative flex flex-col px-8 py-8">
+              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />  {/* ← */}
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
+              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                {todayLoading ? '—' : pickersToday}
+              </span>
+            </div>
+
+            <div className="relative flex flex-col px-8 py-8">
+              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />  {/* ← */}
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
+              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                {todayLoading ? '—' : boxesToday.toLocaleString()}
+              </span>
+            </div>
+
+            <div className="flex flex-col px-8 py-8">
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
+              <div className="flex items-baseline gap-4">
+                <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                  {todayLoading ? '—' : kgToday.toLocaleString()}
+                </span>
+                <span className="text-4xl font-black text-primary-100">kg</span>
+              </div>
+            </div>
+
+          </div>
         </div>
-      </div>
 
       {/* ── ALL-TIME STATS + FIELD PIE ──────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4 items-stretch">
@@ -146,21 +144,21 @@ export default function Dashboard() {
           <div className="flex gap-4 flex-1">
 
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
+              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
               <p className="text-6xl font-black text-neutral-400 leading-none">
                 {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
               </p>
             </div>
 
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
+              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
               <p className="text-6xl font-black text-neutral-400 leading-none">
                 {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
               </p>
             </div>
 
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
+              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-6xl font-black text-neutral-400 leading-none">
                   {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
@@ -357,7 +355,7 @@ export default function Dashboard() {
                         <span className="text-sm font-bold text-neutral-300 font-mono">{idx + 1}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap align-top">
-                        <span className="font-semibold text-neutral-800 block cursor-default" title={`${p.national_id.slice(0,2)}-${p.national_id.slice(2,5)}-${p.national_id.slice(5,11)}`}>{p.first_name} {p.last_name}</span>
+                        <span className="font-semibold text-neutral-800 block cursor-default" title={p.national_id}>{p.first_name} {p.last_name}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap align-top">
                         <span className="font-mono font-bold text-primary-700 block">{p.total_kg.toLocaleString()} kg</span>
