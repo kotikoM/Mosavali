@@ -7,7 +7,7 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
-import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight, TrendingUp, Box, CalendarDays, BarChart2, Rows3, Package2  } from 'lucide-react'
+import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight, TrendingUp, Box, CalendarDays, BarChart2, Rows3, Package2, ChevronLeft } from 'lucide-react'
 import { checkBarcode, bulkScan, getEntries, getDailyStats } from '../api/harvest'
 import { getBoxes } from '../api/boxes'
 import { getFields } from '../api/fields'
