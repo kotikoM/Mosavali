@@ -23,7 +23,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const isEdit = !!picker
 
-  useEffect(() => {
+    useEffect(() => {
     if (picker) {
       setForm({
         national_id:  picker.national_id,
@@ -38,7 +38,16 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
       setForm({ national_id: '', first_name: '', last_name: '', phone: '', origin_place: '', bank_info: '', note: '' })
     }
     setErrors({})
-  }, [picker, open])
+    }, [picker, open])
+
+    useEffect(() => {
+      if (!open) return
+      const handler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose()
+      }
+      document.addEventListener('keydown', handler)
+      return () => document.removeEventListener('keydown', handler)
+    }, [open, onClose])
 
   // format phone as XXX XX XX XX
   const handlePhoneChange = (raw: string) => {

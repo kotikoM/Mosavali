@@ -79,6 +79,15 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
 
   }, [open, barcodeScale, items])
 
+    useEffect(() => {
+      if (!open) return
+      const handler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose()
+      }
+      document.addEventListener('keydown', handler)
+      return () => document.removeEventListener('keydown', handler)
+    }, [open, onClose])
+
   // ── Print — calls backend then generates PDF ───────────────────────
   const handlePrint = async () => {
     setIsPrinting(true)

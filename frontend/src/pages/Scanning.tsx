@@ -2,26 +2,24 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from '@tanstack/react-table'
 import type { ColumnDef } from '@tanstack/react-table'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
-import { ScanBarcode, X, Trash2, CheckCircle, AlertTriangle, ChevronRight, TrendingUp, Box, CalendarDays, BarChart2, Rows3, Package2, ChevronLeft } from 'lucide-react'
+import { ScanBarcode, X, Trash2, CheckCircle, ChevronRight, Box, BarChart2, Rows3, Package2, ChevronLeft } from 'lucide-react'
 import { checkBarcode, bulkScan, getEntries, getDailyStats } from '../api/harvest'
 import { getBoxes } from '../api/boxes'
 import { getFields } from '../api/fields'
 import type { HarvestEntry, BarcodeCheckResponse } from '../api/harvest'
 import { useErrorSound } from '../hooks/useErrorSound'
-import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
 import { useSound } from '../hooks/useSound'
+import Toast from '../components/Toast'
 import DatePicker from '../components/DatePicker'
 import FieldManagementDialog from '../components/FieldManagementDialog'
 import BoxManagementDialog from '../components/BoxManagementDialog'
-
+import ScanErrorDialog from '../components/ScanErrorDialog'
 
 // ── types ──────────────────────────────────────────────────────────────
+
 type ScanStatus = 'idle' | 'valid' | 'error'
 
 interface QueueItem {
@@ -31,14 +29,18 @@ interface QueueItem {
   reason:  string | null
 }
 
+// ── constants ──────────────────────────────────────────────────────────
+
+const BOX_COLORS = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
+const PAGE_SIZE  = 25
+
 // ── helpers ────────────────────────────────────────────────────────────
+
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
 function formatBarcode(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
-  const p1 = digits.slice(0, 4)
-  const p2 = digits.slice(4, 8)
-  return [p1, p2].filter(Boolean).join('-')
+  return [digits.slice(0, 4), digits.slice(4, 8)].filter(Boolean).join('-')
 }
 
 function isComplete(barcode: string): boolean {
@@ -47,20 +49,11 @@ function isComplete(barcode: string): boolean {
 
 function formatBarcodeFilter(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
-  const p1 = digits.slice(0, 4)
-  const p2 = digits.slice(4, 8)
-  return [p1, p2].filter(Boolean).join('-')
+  return [digits.slice(0, 4), digits.slice(4, 8)].filter(Boolean).join('-')
 }
 
-const REASON_LABELS: Record<string, string> = {
-  invalid_format:  'Invalid barcode format',
-  already_scanned: 'This sticker has already been scanned',
-  never_printed:   'This sticker was never printed',
-}
+// ── sub-components ─────────────────────────────────────────────────────
 
-const BOX_COLORS = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
-
-// ── custom tooltip ─────────────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   const total   = payload.reduce((sum: number, p: any) => sum + (p.value ?? 0), 0)
@@ -83,13 +76,18 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-// ── component ──────────────────────────────────────────────────────────
-export default function Scanning() {
-  const queryClient                       = useQueryClient()
-  const { toasts, addToast, removeToast } = useToast()
-  const { playError }                     = useErrorSound()
-  const { play: playSuccess }             = useSound()
+// ── main component ─────────────────────────────────────────────────────
 
+export default function Scanning() {
+  const queryClient           = useQueryClient()
+  const { toasts, addToast,
+          removeToast }       = useToast()
+  const { playError }         = useErrorSound()
+  const { play: playSuccess } = useSound()
+  const inputRef              = useRef<HTMLInputElement>(null)
+  const today                 = fmt(new Date())
+
+  // ── session state ────────────────────────────────────────────────
   const [sessionActive, setSessionActive] = useState(false)
   const [harvestDate, setHarvestDate]     = useState(() => fmt(new Date()))
   const [boxTypeId, setBoxTypeId]         = useState<number | null>(null)
@@ -97,58 +95,53 @@ export default function Scanning() {
   const [queue, setQueue]                 = useState<QueueItem[]>([])
   const [input, setInput]                 = useState('')
   const [errorPopup, setErrorPopup]       = useState<BarcodeCheckResponse | null>(null)
-  const [globalFilter, setGlobalFilter]   = useState('')
-  const [fromDate, setFromDate]           = useState(fmt(subDays(new Date(), 9)))
-  const [toDate, setToDate]               = useState(fmt(new Date()))
+
+  // ── idle page state ──────────────────────────────────────────────
+  const [fromDate, setFromDate]               = useState(fmt(subDays(new Date(), 9)))
+  const [toDate, setToDate]                   = useState(fmt(new Date()))
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
   const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
   const [entriesSearch, setEntriesSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [entriesPage, setEntriesPage]         = useState(1)
-  const PAGE_SIZE                              = 25
 
-  const today = fmt(new Date())
-
-  // debounce
+  // ── debounce search ──────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(entriesSearch), 300)
     return () => clearTimeout(t)
   }, [entriesSearch])
 
-  // reset page on search change
   useEffect(() => { setEntriesPage(1) }, [debouncedSearch])
 
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // ── data fetching ──────────────────────────────────────────────────
-  const { data: boxes = [] }  = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
+  // ── queries ──────────────────────────────────────────────────────
+  const { data: boxes  = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
 
   const { data: todayStats } = useQuery({
     queryKey: ['harvest-stats-today'],
     queryFn:  () => getDailyStats(today, today),
   })
-  const todayCount = todayStats?.total ?? 0
 
   const { data: entriesData, isLoading: entriesLoading } = useQuery({
     queryKey: ['harvest', entriesPage, debouncedSearch],
     queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedSearch),
   })
 
-  const entries      = entriesData?.items ?? []
-  const entriesTotal = entriesData?.total ?? 0
-  const entriesPages = entriesData?.pages ?? 1
-
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['harvest-stats', fromDate, toDate],
     queryFn:  () => getDailyStats(fromDate, toDate),
   })
 
-  // ── bar chart data ─────────────────────────────────────────────────
+  // ── derived values ───────────────────────────────────────────────
+  const todayCount   = todayStats?.total ?? 0
+  const entries      = entriesData?.items ?? []
+  const entriesTotal = entriesData?.total ?? 0
+  const entriesPages = entriesData?.pages ?? 1
+  const validCount   = queue.filter(q => q.status === 'valid').length
+
   const barData = useMemo(() => {
     if (!statsData) return []
-    const days = eachDayOfInterval({ start: parseISO(fromDate), end: parseISO(toDate) })
-    return days.map(day => {
+    return eachDayOfInterval({ start: parseISO(fromDate), end: parseISO(toDate) }).map(day => {
       const dayStr   = fmt(day)
       const dayStats = statsData.stats.filter(s => s.harvest_date === dayStr)
       const entry: Record<string, any> = {
@@ -163,14 +156,7 @@ export default function Scanning() {
     })
   }, [statsData, fromDate, toDate, boxes])
 
-  const totalInRange = statsData?.total ?? 0
-  const activeDays   = barData.filter(d => d.total > 0).length
-  const peakDay      = barData.reduce(
-    (a, b) => a.total > b.total ? a : b,
-    { date: '—', total: 0 }
-  )
-
-  // ── session ────────────────────────────────────────────────────────
+  // ── session handlers ─────────────────────────────────────────────
   useEffect(() => {
     if (sessionActive) setTimeout(() => inputRef.current?.focus(), 100)
   }, [sessionActive])
@@ -197,13 +183,11 @@ export default function Scanning() {
 
   const submitBarcode = useCallback(async (barcode: string) => {
     if (!barcode || !isComplete(barcode)) return
-
     if (queue.some(q => q.barcode === barcode)) {
       playError()
       setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scan_date: null })
       return
     }
-
     try {
       const result = await checkBarcode(barcode)
       if (!result.valid) {
@@ -243,34 +227,27 @@ export default function Scanning() {
     onError: () => addToast('Failed to commit batch', 'error'),
   })
 
-  const validCount = queue.filter(q => q.status === 'valid').length
-
-  // ── table columns ──────────────────────────────────────────────────
+  // ── table columns ────────────────────────────────────────────────
   const entryColumns: ColumnDef<HarvestEntry>[] = [
     {
-      header: 'Barcode',
-      id: 'barcode',
+      header: 'Barcode', id: 'barcode',
       accessorFn: row => `${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
       cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
     },
     {
-      header: 'Picker ID',
-      accessorKey: 'picker_id',
+      header: 'Picker ID', accessorKey: 'picker_id',
       cell: info => <span className="font-mono text-sm text-neutral-500">#{info.getValue<number>()}</span>,
     },
     {
-      header: 'Field ID',
-      accessorKey: 'field_id',
+      header: 'Field ID', accessorKey: 'field_id',
       cell: info => <span className="font-mono text-sm text-neutral-500">#{info.getValue<number>()}</span>,
     },
     {
-      header: 'Box Number',
-      accessorKey: 'box_number',
+      header: 'Box Number', accessorKey: 'box_number',
       cell: info => <span className="font-mono text-sm text-neutral-500">{info.getValue<number>()}</span>,
     },
     {
-      header: 'Harvest Date',
-      accessorKey: 'harvest_date',
+      header: 'Harvest Date', accessorKey: 'harvest_date',
       cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
     },
   ]
@@ -278,27 +255,21 @@ export default function Scanning() {
   const entryTable = useReactTable({
     data:                 entries,
     columns:              entryColumns,
-    state:                { globalFilter },
-    onGlobalFilterChange: setGlobalFilter,
+    state:                { globalFilter: debouncedSearch },
     getCoreRowModel:      getCoreRowModel(),
     getFilteredRowModel:  getFilteredRowModel(),
   })
 
-  // ── idle page ──────────────────────────────────────────────────────
+  // ── idle page ────────────────────────────────────────────────────
   if (!sessionActive) {
     return (
       <div className="flex flex-col gap-6">
 
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-800">
-            Scanning
-          </h1>
-        </div>
+        <h1 className="text-3xl font-bold text-neutral-800">Scanning</h1>
 
         {/* Top row */}
         <div className="grid grid-cols-4 gap-4">
 
-          {/* Start session */}
           <button
             onClick={() => setSessionActive(true)}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-primary-700 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
@@ -306,12 +277,9 @@ export default function Scanning() {
             <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
               <ScanBarcode size={28} className="text-white" strokeWidth={2.5} />
             </div>
-            <div className="text-center">
-              <p className="text-base font-black text-white uppercase tracking-widest">Start Scanning</p>
-            </div>
+            <p className="text-base font-black text-white uppercase tracking-widest">Start Scanning</p>
           </button>
 
-          {/* Add Field */}
           <button
             onClick={() => setFieldDialogOpen(true)}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
@@ -319,12 +287,9 @@ export default function Scanning() {
             <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
               <Rows3 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
             </div>
-            <div className="text-center">
-              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Fields</p>
-            </div>
+            <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Fields</p>
           </button>
 
-          {/* Add Box Type */}
           <button
             onClick={() => setBoxDialogOpen(true)}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
@@ -332,21 +297,16 @@ export default function Scanning() {
             <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
               <Package2 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
             </div>
-            <div className="text-center">
-              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
-            </div>
+            <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
           </button>
 
-          {/* Scanned Today */}
           <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
               <Box size={26} className="text-primary-700" strokeWidth={2} />
             </div>
             <div>
               <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Scanned Today</p>
-              <p className="text-3xl font-black text-neutral-900 mt-0.5">
-                {todayCount.toLocaleString()}
-              </p>
+              <p className="text-3xl font-black text-neutral-900 mt-0.5">{todayCount.toLocaleString()}</p>
               <p className="text-xs text-neutral-400 mt-0.5">{today}</p>
             </div>
           </div>
@@ -356,11 +316,9 @@ export default function Scanning() {
         {/* Bar chart */}
         <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
           <div className="px-6 py-5 border-b-2 border-neutral-100 flex items-center gap-6">
-            <div className="flex items-center gap-3 shrink-0">
-              <div>
-                <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
-                <p className="text-sm text-neutral-400">Boxes scanned per day by box type</p>
-              </div>
+            <div className="shrink-0">
+              <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
+              <p className="text-sm text-neutral-400">Boxes scanned per day by box type</p>
             </div>
             <div className="w-px h-12 bg-neutral-200 shrink-0" />
             <div className="flex items-center gap-3">
@@ -399,7 +357,7 @@ export default function Scanning() {
                         stackId="a"
                         fill={BOX_COLORS[idx % BOX_COLORS.length]}
                         radius={idx === boxes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        isAnimationActive={true}
+                        isAnimationActive
                         animationBegin={idx * 80}
                         animationDuration={800}
                         animationEasing="ease-out"
@@ -440,10 +398,7 @@ export default function Scanning() {
                 className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider"
               />
               {entriesSearch && (
-                <button
-                  onClick={() => setEntriesSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
-                >
+                <button onClick={() => setEntriesSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
                   <X size={14} />
                 </button>
               )}
@@ -505,7 +460,6 @@ export default function Scanning() {
                     >
                       <ChevronLeft size={15} strokeWidth={2.5} />
                     </button>
-
                     {Array.from({ length: entriesPages }, (_, i) => i + 1)
                       .filter(p => p === 1 || p === entriesPages || Math.abs(p - entriesPage) <= 2)
                       .reduce<(number | 'gap')[]>((acc, p, i, arr) => {
@@ -513,31 +467,17 @@ export default function Scanning() {
                         acc.push(p)
                         return acc
                       }, [])
-                      .map((p, i) =>
-                        p === 'gap' ? (
-                          <span key={`gap-${i}`} className="w-9 text-center text-neutral-400 text-sm">…</span>
-                        ) : (
-                          <button
-                            key={p}
-                            onClick={() => setEntriesPage(p)}
-                            className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors
-                              ${entriesPage === p
-                                ? 'border-primary-700 bg-primary-700 text-white'
-                                : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'
-                              }`}
-                          >
-                            {p}
-                          </button>
-                        )
+                      .map((p, i) => p === 'gap'
+                        ? <span key={`gap-${i}`} className="w-9 text-center text-neutral-400 text-sm">…</span>
+                        : <button key={p} onClick={() => setEntriesPage(p)} className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors ${entriesPage === p ? 'border-primary-700 bg-primary-700 text-white' : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'}`}>{p}</button>
                       )
                     }
-
                     <button
                       onClick={() => setEntriesPage(p => Math.min(entriesPages, p + 1))}
                       disabled={entriesPage === entriesPages}
                       className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <ChevronRight size={15} strokeWidth={2.5} />
+                      <ChevronLeft size={15} strokeWidth={2.5} className="rotate-180" />
                     </button>
                   </div>
                 </div>
@@ -546,22 +486,14 @@ export default function Scanning() {
           )}
         </div>
 
-        <FieldManagementDialog
-          open={fieldDialogOpen}
-          onClose={() => setFieldDialogOpen(false)}
-        />
-
-        <BoxManagementDialog
-          open={boxDialogOpen}
-          onClose={() => setBoxDialogOpen(false)}
-        />
-
+        <FieldManagementDialog open={fieldDialogOpen} onClose={() => setFieldDialogOpen(false)} />
+        <BoxManagementDialog   open={boxDialogOpen}   onClose={() => setBoxDialogOpen(false)} />
         <Toast toasts={toasts} onRemove={removeToast} />
       </div>
     )
   }
 
-  // ── active session ─────────────────────────────────────────────────
+  // ── active session ───────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-neutral-100 z-40 flex flex-col overflow-hidden">
 
@@ -588,11 +520,7 @@ export default function Scanning() {
                 ${!fieldId ? 'border-amber-300 bg-amber-50 text-neutral-500' : 'border-neutral-200 bg-neutral-50 text-neutral-800'}`}
             >
               <option value="" disabled>Select field...</option>
-              {fields.map(field => (
-                <option key={field.field_id} value={field.field_id}>
-                  {field.field_name}
-                </option>
-              ))}
+              {fields.map(f => <option key={f.field_id} value={f.field_id}>{f.field_name}</option>)}
             </select>
           </div>
 
@@ -608,11 +536,7 @@ export default function Scanning() {
                 ${!boxTypeId ? 'border-amber-300 bg-amber-50 text-neutral-500' : 'border-neutral-200 bg-neutral-50 text-neutral-800'}`}
             >
               <option value="" disabled>Select box type...</option>
-              {boxes.map(box => (
-                <option key={box.box_id} value={box.box_id}>
-                  {box.name} — {box.net_weight_kg} kg net
-                </option>
-              ))}
+              {boxes.map(b => <option key={b.box_id} value={b.box_id}>{b.name} — {b.net_weight_kg} kg net</option>)}
             </select>
           </div>
 
@@ -624,6 +548,7 @@ export default function Scanning() {
         {/* Left */}
         <div className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
           <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col gap-4 flex-1">
+
             <div className="flex-[2] relative border-2 border-neutral-200 rounded-2xl bg-neutral-50 focus-within:border-primary transition-colors">
               <input
                 ref={inputRef}
@@ -686,7 +611,7 @@ export default function Scanning() {
             <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
           </div>
 
-          <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-100">
+          <div className="px-5 py-3 border-b border-neutral-100">
             <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
           </div>
 
@@ -718,35 +643,10 @@ export default function Scanning() {
         </div>
       </div>
 
-      {/* Error popup */}
-      {errorPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-8">
-            <div className="flex justify-center mb-5">
-              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center">
-                <AlertTriangle size={40} className="text-red-500" strokeWidth={2} />
-              </div>
-            </div>
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-black text-neutral-900 mb-2">Scan Failed</h2>
-              <p className="text-base text-neutral-500">
-                {errorPopup.reason ? REASON_LABELS[errorPopup.reason] ?? errorPopup.reason : 'Unknown error'}
-              </p>
-              {errorPopup.scan_date && (
-                <p className="text-sm text-neutral-400 mt-2">Previously scanned on {errorPopup.scan_date}</p>
-              )}
-              <p className="font-mono text-sm text-neutral-300 mt-3">{errorPopup.barcode}</p>
-            </div>
-            <button
-              onClick={() => { setErrorPopup(null); inputRef.current?.focus() }}
-              className="w-full py-3 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      <ScanErrorDialog
+        error={errorPopup}
+        onClose={() => { setErrorPopup(null); inputRef.current?.focus() }}
+      />
 
       <Toast toasts={toasts} onRemove={removeToast} />
     </div>
