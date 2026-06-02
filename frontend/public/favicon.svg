@@ -1,5 +1,7 @@
-<svg fill="#000000" height="800px" width="800px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-	 viewBox="0 0 512.078 512.078" xml:space="preserve">
+<svg fill="#2D5A27" stroke="#2D5A27" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"
+	 height="800px" width="800px" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+	 viewBox="-30 -30 572.078 572.078" xml:space="preserve" style="background:white;">
+<g transform="translate(0,0)">
 <g>
 	<g>
 		<path d="M407.239,256.878c0.4-4,0.8-8.4,0.8-12.8c0-14-2-27.2-6-39.6c39.2-50.4,58.4-112,54-174c0-2-1.6-3.6-3.6-3.6
@@ -70,5 +72,6 @@
 		<path d="M365.239,187.278c-6.4-10-14-18.8-23.2-26.4c-1.6-1.2-4.4-1.2-5.6,0.4c-1.2,1.6-1.2,4.4,0.4,5.6
 			c8.4,6.8,15.6,15.2,21.6,24.4c0.8,1.2,2,2,3.6,2c0.8,0,1.6,0,2-0.4C366.039,191.678,366.439,189.278,365.239,187.278z"/>
 	</g>
+</g>
 </g>
 </svg>
