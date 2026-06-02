@@ -36,6 +36,12 @@ export default function Dashboard() {
   })
   const pickersToday = todayStats.length
   const boxesToday   = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
+  const totalBoxTypes = todayStats.reduce((acc, p) => {
+    Object.entries(p.total_box_types).forEach(([name, count]) => {
+      acc[name] = (acc[name] ?? 0) + (count as number)
+    })
+    return acc
+  }, {} as Record<string, number>)
   const kgToday      = Math.round(todayStats.reduce((sum, p) => sum + p.total_kg, 0) * 10) / 10
 
   const dailyColumns = useMemo(() => {
@@ -113,11 +119,22 @@ export default function Dashboard() {
             </div>
 
             <div className="relative flex flex-col px-8 py-8">
-              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />  {/* ← */}
+              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
-              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-                {todayLoading ? '—' : boxesToday.toLocaleString()}
-              </span>
+              <div className="flex items-end gap-6">
+                <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                  {todayLoading ? '—' : boxesToday.toLocaleString()}
+                </span>
+                {!todayLoading && Object.keys(totalBoxTypes).length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2.5">
+                    {Object.entries(totalBoxTypes).map(([boxName, count]) => (
+                      <span key={boxName} className="text-sm font-semibold text-primary-200 whitespace-nowrap">
+                        {boxName}: {count.toLocaleString()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col px-8 py-8">
