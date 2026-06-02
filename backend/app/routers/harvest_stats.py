@@ -144,6 +144,9 @@ async def get_picker_box_stats(
             Picker.first_name,
             Picker.last_name,
             Picker.national_id,
+            Picker.phone,
+            Picker.bank_info,
+            Picker.origin_place,
             HarvestEntry.harvest_date,
             Box.box_id,
             Box.name.label("box_name"),
@@ -154,7 +157,8 @@ async def get_picker_box_stats(
         .join(HarvestEntry, HarvestEntry.picker_id == Picker.picker_id)
         .join(Box, Box.box_id == HarvestEntry.box_type_id)
         .group_by(
-            Picker.picker_id, Picker.first_name, Picker.last_name, Picker.national_id,
+            Picker.picker_id, Picker.first_name, Picker.last_name,
+            Picker.national_id, Picker.phone, Picker.bank_info, Picker.origin_place,
             HarvestEntry.harvest_date, Box.box_id, Box.name, Box.net_weight_kg,
         )
         .order_by(Picker.picker_id, HarvestEntry.harvest_date, Box.box_id)
@@ -174,6 +178,9 @@ async def get_picker_box_stats(
                 "first_name":      row.first_name,
                 "last_name":       row.last_name,
                 "national_id":     row.national_id,
+                "phone":           row.phone,
+                "bank_info":       row.bank_info,
+                "origin_place":    row.origin_place,
                 "days":            {},
                 "total_kg":        0.0,
                 "total_boxes":     0,

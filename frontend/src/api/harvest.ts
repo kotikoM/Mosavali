@@ -83,6 +83,9 @@ export interface PickerBoxStat {
   first_name:      string
   last_name:       string
   national_id:     string
+  phone:           string | null
+  bank_info:       string | null
+  origin_place:    string | null
   total_kg:        number
   total_boxes:     number
   total_box_types: Record<string, number>
