@@ -3,10 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, eachDayOfInterval } from 'date-fns'
 import { getDailyStats, getHarvestOverview, getPickerStats, getPickerBoxStats, getFieldStats } from '../api/harvest'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { ScanBarcode, Users, Weight, X, ChevronUp, ChevronDown, Maximize2, Minimize2, ChevronLeft, ChevronRight, FileDown } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
-import * as ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
+import { exportDailyHarvestToExcel } from '../utils/exportDailyHarvest'
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
@@ -24,9 +23,10 @@ export default function Dashboard() {
   const [dailyMaximized, setDailyMaximized] = useState(false)
   const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
   const [dailySearch, setDailySearch]       = useState('')
-  const [heroDate, setHeroDate]             = useState(fmt(new Date()))
-  const [originSearch, setOriginSearch]     = useState('')
+  const [heroDate, setHeroDate] = useState(fmt(new Date()))
+  const [originSearch, setOriginSearch] = useState('')
   const [dailyOriginSearch, setDailyOriginSearch] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const today = fmt(new Date())
 
@@ -38,7 +38,6 @@ export default function Dashboard() {
     queryKey: ['picker-box-stats-hero', heroDate],
     queryFn:  () => getPickerBoxStats(heroDate, heroDate),
   })
-
   const pickersToday = todayStats.length
   const boxesToday   = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
   const totalBoxTypes = todayStats.reduce((acc, p) => {
@@ -53,6 +52,7 @@ export default function Dashboard() {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
     return days.map(d => fmt(d))
   }, [dailyFrom, dailyTo])
+
 
   const filteredDailyStats = useMemo(() => {
     return pickerDailyStats.filter(p => {
@@ -79,9 +79,7 @@ export default function Dashboard() {
   useEffect(() => { setPickerPage(1) }, [pickerSearch, originSearch, sortBy, sortDir])
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && dailyMaximized) {
-        setDailyMaximized(false)
-      }
+      if (e.key === 'Escape' && dailyMaximized) setDailyMaximized(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -95,96 +93,14 @@ export default function Dashboard() {
     return sortDir === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />
   }
 
-  // --- EXCEL EXPORT LOGIC ---
-  const exportToExcel = async () => {
-    const workbook = new ExcelJS.Workbook()
-    const sheet = workbook.addWorksheet('Daily Harvest')
-
-    // Top Input for Dynamic Pay per KG (Row 1)
-    sheet.getCell('A1').value = 'Pay per kg:'
-    sheet.getCell('A1').font = { bold: true, size: 12 }
-    sheet.getCell('A1').alignment = { horizontal: 'right' }
-
-    // Cell B1 is the dynamic input
-    const inputCell = sheet.getCell('B1')
-    inputCell.value = 1.50 // Default value
-    inputCell.numFmt = '"$"#,##0.00'
-    inputCell.font = { bold: true, color: { argb: 'FF000000' } }
-    inputCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } } // Yellow highlight
-    inputCell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
-
-    // Headers (Row 3)
-    const headerRow = sheet.getRow(3)
-    const headers = ['Name', 'ID', 'Phone', 'Origin', 'Total kg', 'Salary', 'Total Boxes', 'Box Breakdown', ...dailyColumns]
-    headerRow.values = headers
-
-    // Header Styling
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' }
-    headers.forEach((_, i) => {
-      const cell = headerRow.getCell(i + 1)
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2D5A27' } } // Primary brand color
-      cell.border = { bottom: { style: 'medium' } }
-    })
-
-    // Data Rows (Starting Row 4)
-    filteredDailyStats.forEach((p, index) => {
-      const rowIndex = index + 4
-      const row = sheet.getRow(rowIndex)
-
-      // Format string for breakdown
-      const breakdownStr = Object.entries(p.total_box_types)
-                                 .map(([box, count]) => `${box}: ${count}`)
-                                 .join(', ')
-
-      // Format daily strings
-      const dailyData = dailyColumns.map(day => {
-         const dayData = p.days[day]
-         if (!dayData || dayData.kg === 0) return '-'
-         const bd = Object.entries(dayData.box_types).map(([b, c]) => `${b}:${c}`).join(', ')
-         return `${dayData.kg}kg (${bd})`
-      })
-
-      row.values = [
-        `${p.first_name} ${p.last_name}`,
-        p.national_id,
-        (p as any).phone ?? '—', // Ensure graceful fallback if phone is missing on the type
-        p.origin_place ?? '—',
-        p.total_kg,
-        { formula: `=E${rowIndex}*$B$1` }, // Dynamic Salary Formula
-        p.total_boxes,
-        breakdownStr,
-        ...dailyData
-      ]
-
-      // Cell Styling
-      row.alignment = { vertical: 'middle' }
-
-      // Make main columns bold: Name (1), Total kg (5), Salary (6)
-      row.getCell(1).font = { bold: true }
-      row.getCell(5).font = { bold: true }
-
-      const salaryCell = row.getCell(6)
-      salaryCell.font = { bold: true, color: { argb: 'FF166534' } } // Dark green
-      salaryCell.numFmt = '"$"#,##0.00'
-    })
-
-    // Auto-fit Columns Layout
-    sheet.columns.forEach((col, i) => {
-      if (i === 0) col.width = 25       // Name
-      else if (i === 1) col.width = 15  // ID
-      else if (i === 2) col.width = 15  // Phone
-      else if (i === 3) col.width = 18  // Origin
-      else if (i === 4) col.width = 12  // Total kg
-      else if (i === 5) col.width = 15  // Salary
-      else if (i === 6) col.width = 12  // Total Boxes
-      else if (i === 7) col.width = 40  // Breakdown
-      else col.width = 25               // Days
-    })
-
-    // Save File
-    const buffer = await workbook.xlsx.writeBuffer()
-    saveAs(new Blob([buffer]), `Harvest_Report_${dailyFrom}_to_${dailyTo}.xlsx`)
+  const handleExportExcel = async () => {
+    if (exporting || filteredDailyStats.length === 0) return
+    setExporting(true)
+    try {
+      await exportDailyHarvestToExcel(filteredDailyStats, dailyColumns, dailyFrom, dailyTo)
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -197,11 +113,14 @@ export default function Dashboard() {
 
         {/* ── DAY HERO ─────────────────────────────────────────────── */}
         <div className="bg-primary-700 rounded-2xl overflow-hidden">
+
           <div className="px-8 pt-7 pb-0 flex items-center gap-6">
             <div>
               <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
             </div>
+
             <div className="w-px h-8 bg-primary-500 shrink-0" />
+
             <div className="flex flex-col gap-1">
               <DatePicker
                 value={heroDate}
@@ -210,7 +129,9 @@ export default function Dashboard() {
               />
             </div>
           </div>
+
           <div className="grid grid-cols-3 mt-2">
+
             <div className="relative flex flex-col px-8 py-8">
               <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
@@ -218,6 +139,7 @@ export default function Dashboard() {
                 {todayLoading ? '—' : pickersToday}
               </span>
             </div>
+
             <div className="relative flex flex-col px-8 py-8">
               <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
@@ -236,6 +158,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+
             <div className="flex flex-col px-8 py-8">
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
               <div className="flex items-baseline gap-4">
@@ -245,27 +168,34 @@ export default function Dashboard() {
                 <span className="text-4xl font-black text-primary-100">kg</span>
               </div>
             </div>
+
           </div>
         </div>
 
       {/* ── ALL-TIME STATS + FIELD PIE ──────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4 items-stretch">
+
+        {/* All-time stats */}
         <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
           <p className="text-xl font-bold text-neutral-900 mb-1">All Time</p>
           <p className="text-sm text-neutral-400 mb-6">Cumulative harvest totals</p>
+
           <div className="flex gap-4 flex-1">
+
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
               <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
               <p className="text-6xl font-black text-neutral-400 leading-none">
                 {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
               </p>
             </div>
+
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
               <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
               <p className="text-6xl font-black text-neutral-400 leading-none">
                 {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
               </p>
             </div>
+
             <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
               <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
               <div className="flex items-baseline gap-2">
@@ -275,9 +205,11 @@ export default function Dashboard() {
                 <span className="text-2xl font-black text-neutral-400">kg</span>
               </div>
             </div>
+
           </div>
         </div>
 
+        {/* Field pie */}
         <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
           <div className="mb-6">
             <p className="text-xl font-bold text-neutral-900">By Field</p>
@@ -379,7 +311,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {paginatedPickers.map((p) => (
-                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors">
+                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors" style={{}}>
                     <td className="px-6 py-4"><span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span></td>
                     <td className="px-6 py-4"><span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span></td>
                     <td className="px-6 py-4"><span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>{p.total_boxes.toLocaleString()}</span></td>
@@ -464,15 +396,19 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Divider and Excel Export Button */}
+          {/* ── Export divider + button ── */}
           <div className="w-px h-12 bg-neutral-200 shrink-0" />
-          <button
-            onClick={exportToExcel}
-            className="flex items-center gap-2 rounded-xl border-2 border-primary-500 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 transition-all hover:bg-primary-100 hover:border-primary-600"
-          >
-            <Download size={16} strokeWidth={2.5} />
-            Export
-          </button>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export</label>
+            <button
+              onClick={handleExportExcel}
+              disabled={exporting || filteredDailyStats.length === 0}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-neutral-200 text-sm font-semibold text-neutral-600 hover:border-primary-300 hover:text-primary-700 hover:bg-primary-50 active:bg-primary-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <FileDown size={15} strokeWidth={2.5} />
+              {exporting ? 'Exporting…' : 'Excel'}
+            </button>
+          </div>
 
           <button onClick={() => setDailyMaximized(m => !m)} className="ml-auto p-2 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors">
             {dailyMaximized ? <Minimize2 size={16} strokeWidth={2.5} /> : <Maximize2 size={16} strokeWidth={2.5} />}
@@ -519,6 +455,7 @@ export default function Dashboard() {
                         <span className="font-semibold text-neutral-800 block">
                             {p.total_boxes.toLocaleString()}
                         </span>
+
                         <span className="text-xs text-neutral-400 block mt-0.5">
                             {Object.entries(p.total_box_types)
                                   .map(([boxName, count]) => `${boxName}: ${count}`)
@@ -571,6 +508,7 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+
           </div>
         )}
       </div>
