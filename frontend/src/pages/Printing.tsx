@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,58 +10,29 @@ import {
 import type { ColumnDef, SortingState, ColumnFiltersState } from '@tanstack/react-table'
 import { Printer, Plus, Trash2, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { getPickers } from '../api/pickers'
-import { createPrintBatch } from '../api/printBatches'
 import type { Picker } from '../api/pickers'
-import type { PrintBatch } from '../api/printBatches'
 import PrintDialog from '../components/PrintDialog'
 import Toast from '../components/Toast'
 import { useToast } from '../hooks/useToast'
-import axios from 'axios'
 
 interface QueueEntry {
   id:       string
   picker:   Picker
-  quantity: number
+  quantity: string
 }
 
 export default function Printing() {
-  const queryClient                           = useQueryClient()
   const { toasts, addToast, removeToast }     = useToast()
-
   const [sorting, setSorting]                 = useState<SortingState>([])
   const [columnFilters, setColumnFilters]     = useState<ColumnFiltersState>([])
   const [selectedPickers, setSelectedPickers] = useState<Set<number>>(new Set())
-  const [quantity, setQuantity]               = useState<number>(0)
+  const [quantity, setQuantity]               = useState<string>('')
   const [queue, setQueue]                     = useState<QueueEntry[]>([])
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
-  const [printBatches, setPrintBatches]       = useState<PrintBatch[]>([])
 
   const { data: pickers = [], isLoading: pickersLoading } = useQuery({
     queryKey: ['pickers'],
     queryFn:  getPickers,
-  })
-
-  const printMutation = useMutation({
-    mutationFn: () => createPrintBatch({
-      items: queue.map(q => ({
-        picker_id: q.picker.picker_id,
-        quantity:  q.quantity,
-      }))
-    }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['print-batches'] })
-      setPrintBatches(data)
-      setPrintDialogOpen(true)
-      setQueue([])
-      addToast(`${data.length} batch(es) created`, 'success')
-    },
-    onError: (error) => {
-      if (axios.isAxiosError(error)) {
-        addToast(error.response?.data?.detail ?? 'Failed to print', 'error')
-      } else {
-        addToast('Failed to print batch', 'error')
-      }
-    },
   })
 
   const togglePicker = (id: number) => {
@@ -73,28 +44,24 @@ export default function Printing() {
   }
 
   const handleAddToQueue = () => {
-    if (selectedPickers.size === 0 || quantity < 1) return
+    const qty = Number(quantity)
+    if (selectedPickers.size === 0 || qty < 1) return
 
     const newEntries: QueueEntry[] = []
-    const skipped: string[] = []
+    const skipped: string[]        = []
 
     pickers
       .filter(p => selectedPickers.has(p.picker_id))
       .forEach(picker => {
-        const alreadyInQueue = queue.some(q => q.picker.picker_id === picker.picker_id)
-        if (alreadyInQueue) {
+        if (queue.some(q => q.picker.picker_id === picker.picker_id)) {
           skipped.push(`${picker.first_name} ${picker.last_name}`)
         } else {
           newEntries.push({ id: crypto.randomUUID(), picker, quantity })
         }
       })
 
-    if (newEntries.length > 0) {
-      setQueue(prev => [...prev, ...newEntries])
-    }
-    if (skipped.length > 0) {
-      addToast(`Skipped ${skipped.length} duplicate(s)`, 'error')
-    }
+    if (newEntries.length > 0) setQueue(prev => [...prev, ...newEntries])
+    if (skipped.length > 0) addToast(`Skipped ${skipped.length} duplicate(s)`, 'error')
 
     setSelectedPickers(new Set())
   }
@@ -105,8 +72,8 @@ export default function Printing() {
       enableSorting: false,
       enableColumnFilter: false,
       header: ({ table }) => {
-        const visibleIds  = table.getFilteredRowModel().rows.map(r => r.original.picker_id)
-        const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedPickers.has(id))
+        const visibleIds   = table.getFilteredRowModel().rows.map(r => r.original.picker_id)
+        const allSelected  = visibleIds.length > 0 && visibleIds.every(id => selectedPickers.has(id))
         const someSelected = visibleIds.some(id => selectedPickers.has(id))
         return (
           <input
@@ -115,17 +82,9 @@ export default function Printing() {
             ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
             onChange={() => {
               if (allSelected) {
-                setSelectedPickers(prev => {
-                  const next = new Set(prev)
-                  visibleIds.forEach(id => next.delete(id))
-                  return next
-                })
+                setSelectedPickers(prev => { const n = new Set(prev); visibleIds.forEach(id => n.delete(id)); return n })
               } else {
-                setSelectedPickers(prev => {
-                  const next = new Set(prev)
-                  visibleIds.forEach(id => next.add(id))
-                  return next
-                })
+                setSelectedPickers(prev => { const n = new Set(prev); visibleIds.forEach(id => n.add(id)); return n })
               }
             }}
             className="w-4 h-4 rounded accent-primary cursor-pointer"
@@ -143,40 +102,25 @@ export default function Printing() {
       ),
     },
     {
-      header: 'Name',
-      id: 'name',
-      enableColumnFilter: true,
+      header: 'Name', id: 'name', enableColumnFilter: true,
       accessorFn: row => `${row.first_name} ${row.last_name}`,
       filterFn: 'includesString',
-      cell: info => (
-        <span className="font-medium text-neutral-800">{info.getValue<string>()}</span>
-      ),
+      cell: info => <span className="font-medium text-neutral-800">{info.getValue<string>()}</span>,
     },
     {
-      header: 'National ID',
-      accessorKey: 'national_id',
-      filterFn: 'includesString',
-      enableColumnFilter: true,
-      cell: info => (
-        <span className="font-mono text-sm text-neutral-600">
-          {info.getValue<string>()}
-        </span>
-      ),
+      header: 'National ID', accessorKey: 'national_id',
+      filterFn: 'includesString', enableColumnFilter: true,
+      cell: info => <span className="font-mono text-sm text-neutral-600">{info.getValue<string>()}</span>,
     },
     {
-      header: 'Origin',
-      accessorKey: 'origin_place',
-      filterFn: 'includesString',
-      enableColumnFilter: true,
-      cell: info => (
-        <span className="text-sm text-neutral-600">{info.getValue<string>() ?? '—'}</span>
-      ),
+      header: 'Origin', accessorKey: 'origin_place',
+      filterFn: 'includesString', enableColumnFilter: true,
+      cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
     },
   ], [selectedPickers])
 
   const table = useReactTable({
-    data: pickers,
-    columns,
+    data: pickers, columns,
     state: { sorting, columnFilters },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -185,14 +129,12 @@ export default function Printing() {
     getSortedRowModel: getSortedRowModel(),
   })
 
-  const totalStickers = queue.reduce((sum, q) => sum + q.quantity, 0)
+  const totalStickers = queue.reduce((sum, q) => sum + Number(q.quantity), 0)
 
   return (
     <div className="flex flex-col gap-6">
 
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-neutral-800">Printing</h1>
-      </div>
+      <h1 className="text-3xl font-bold text-neutral-800">Printing</h1>
 
       <div className="flex gap-6 items-start">
 
@@ -236,10 +178,7 @@ export default function Printing() {
                               className="w-full px-3 py-2 pr-6 text-sm rounded-lg border-2 border-neutral-200 bg-white outline-none focus:border-primary transition-colors placeholder:text-neutral-300 font-normal text-neutral-700"
                             />
                             {(header.column.getFilterValue() as string) && (
-                              <button
-                                onClick={() => header.column.setFilterValue('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
-                              >
+                              <button onClick={() => header.column.setFilterValue('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
                                 <X size={11} />
                               </button>
                             )}
@@ -258,10 +197,7 @@ export default function Printing() {
                       key={row.id}
                       onClick={() => togglePicker(row.original.picker_id)}
                       className={`border-b border-neutral-100 cursor-pointer transition-all
-                        ${isSelected
-                          ? 'bg-primary-50 border-l-4 border-l-primary-700'
-                          : 'hover:bg-neutral-50 border-l-4 border-l-transparent'
-                        }`}
+                        ${isSelected ? 'bg-primary-50 border-l-4 border-l-primary-700' : 'hover:bg-neutral-50 border-l-4 border-l-transparent'}`}
                     >
                       {row.getVisibleCells().map(cell => (
                         <td key={cell.id} className="px-6 py-4 text-base">
@@ -272,11 +208,7 @@ export default function Printing() {
                   )
                 })}
                 {table.getRowModel().rows.length === 0 && (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-16 text-center text-neutral-400 text-sm">
-                      No pickers found.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={columns.length} className="px-6 py-16 text-center text-neutral-400 text-sm">No pickers found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -286,47 +218,41 @@ export default function Printing() {
         {/* Right — config + queue */}
         <div className="w-80 shrink-0 flex flex-col gap-4">
 
-          {/* Add to queue form */}
           <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col gap-4">
             <p className="text-sm font-black text-neutral-500 uppercase tracking-widest">Add to Queue</p>
 
             <div>
-              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
-                Selected Pickers
-              </label>
+              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">Selected Pickers</label>
               <div className={`mt-1.5 px-4 py-3 rounded-xl border-2 text-sm transition-colors
                 ${selectedPickers.size > 0
                   ? 'border-primary-300 bg-primary-50 text-primary-800 font-semibold'
                   : 'border-neutral-200 bg-neutral-50 text-neutral-400 italic'
                 }`}
               >
-                {selectedPickers.size > 0
-                  ? `${selectedPickers.size} picker${selectedPickers.size > 1 ? 's' : ''} selected`
-                  : 'Click rows or use checkboxes'
-                }
+                {selectedPickers.size > 0 ? `${selectedPickers.size} picker${selectedPickers.size > 1 ? 's' : ''} selected` : 'Click rows or use checkboxes'}
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
-                Number of stickers
-              </label>
+              <label className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">Stickers per Picker</label>
               <input
                 type="number"
+                min={1}
+                max={999}
                 value={quantity}
                 onChange={e => setQuantity(e.target.value)}
                 className="mt-1.5 w-full px-4 py-3 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm outline-none focus:border-primary transition-colors"
               />
               {selectedPickers.size > 1 && Number(quantity) > 0 && (
                 <p className="text-xs text-neutral-400 mt-1.5">
-                  {Number(quantity)} × {selectedPickers.size} pickers = <span className="font-bold text-neutral-700">{Number(quantity) * selectedPickers.size}</span> total stickers
+                  {Number(quantity)} × {selectedPickers.size} = <span className="font-bold text-neutral-700">{Number(quantity) * selectedPickers.size}</span> total
                 </p>
               )}
             </div>
 
             <button
               onClick={handleAddToQueue}
-              disabled={selectedPickers.size === 0 || quantity < 1}
+              disabled={selectedPickers.size === 0 || Number(quantity) < 1}
               className="w-full py-3.5 rounded-xl bg-primary-700 text-white text-sm font-bold hover:bg-primary transition-colors disabled:opacity-30 flex items-center justify-center gap-2"
             >
               <Plus size={16} strokeWidth={2.5} />
@@ -356,17 +282,10 @@ export default function Printing() {
                   {queue.map(item => (
                     <div key={item.id} className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold text-neutral-800">
-                          {item.picker.first_name} {item.picker.last_name}
-                        </span>
-                        <span className="text-xs text-neutral-400">
-                          <span className="font-bold text-neutral-600">{item.quantity}</span> stickers
-                        </span>
+                        <span className="text-sm font-semibold text-neutral-800">{item.picker.first_name} {item.picker.last_name}</span>
+                        <span className="text-xs text-neutral-400"><span className="font-bold text-neutral-600">{item.quantity}</span> stickers</span>
                       </div>
-                      <button
-                        onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))}
-                        className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded"
-                      >
+                      <button onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))} className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded">
                         <Trash2 size={14} strokeWidth={2.5} />
                       </button>
                     </div>
@@ -374,17 +293,12 @@ export default function Printing() {
                 </div>
 
                 <div className="px-5 py-4 bg-neutral-50 flex flex-col gap-3 border-t-2 border-neutral-100">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-neutral-500">Total stickers</span>
-                    <span className="text-2xl font-black text-neutral-800">{totalStickers}</span>
-                  </div>
                   <button
-                    onClick={() => printMutation.mutate()}
-                    disabled={printMutation.isPending}
-                    className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold hover:bg-primary transition-colors disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
+                    onClick={() => setPrintDialogOpen(true)}
+                    className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
                   >
                     <Printer size={17} strokeWidth={2.5} />
-                    {printMutation.isPending ? 'Printing...' : `Print ${queue.length} Batch${queue.length > 1 ? 'es' : ''}`}
+                    Print
                   </button>
                 </div>
               </>
@@ -399,7 +313,16 @@ export default function Printing() {
       <PrintDialog
         open={printDialogOpen}
         onClose={() => setPrintDialogOpen(false)}
-        batches={printBatches}
+        items={queue.map(q => ({
+          picker_id:   q.picker.picker_id,
+          picker_name: `${q.picker.first_name} ${q.picker.last_name}`,
+          quantity:    Number(q.quantity),
+        }))}
+        onSuccess={() => {
+          setQueue([])
+          setPrintDialogOpen(false)
+          addToast('Stickers sent to print', 'success')
+        }}
       />
     </div>
   )
