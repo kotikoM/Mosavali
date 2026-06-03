@@ -5,12 +5,17 @@ const api = axios.create({ baseURL: 'http://localhost:8000' })
 // ── request / response types ───────────────────────────────────────────
 
 export interface HarvestEntry {
-  field_id:     number
-  picker_id:    number
-  box_number:   number
-  box_type_id:  number
-  harvest_date: string
-  scan_date:    string
+  field_id:          number
+  field_name:        number
+  picker_id:         number
+  box_number:        number
+  box_type_id:       number
+  harvest_date:      string
+  scan_date:         string
+  picker_first_name: string
+  picker_last_name:  string
+  box_name:          string
+  box_net_weight_kg: number
 }
 
 export interface BarcodeCheckResponse {
@@ -100,6 +105,35 @@ export interface FieldStat {
   total_kg:    number
 }
 
+// ── export types ────────────────────────────────────────────────────────
+
+export interface PickerDetailExportEntry {
+  barcode:       string
+  box_name:      string
+  net_weight_kg: number
+  field_name:    string
+  harvest_date:  string
+}
+
+export interface PickerDetailBoxSummary {
+  box_name:      string
+  net_weight_kg: number
+  count:         number
+}
+
+export interface PickerDetailExportRow {
+  picker_id:        number
+  first_name:       string
+  last_name:        string
+  national_id:      string
+  origin_place:     string | null
+  phone:            string
+  total_boxes:      number
+  total_kg:         number
+  box_type_summary: PickerDetailBoxSummary[]
+  entries:          PickerDetailExportEntry[]
+}
+
 // ── helpers ────────────────────────────────────────────────────────────
 
 function dateParams(from?: string, to?: string): URLSearchParams {
@@ -143,3 +177,8 @@ export const getPickerBoxStats = (from?: string, to?: string) =>
 
 export const getFieldStats = (from?: string, to?: string) =>
   api.get<FieldStat[]>(`/harvest/stats/fields?${dateParams(from, to)}`).then(r => r.data)
+
+// ── export endpoints ────────────────────────────────────────────────────
+
+export const getPickerDetailExport = () =>
+  api.get<PickerDetailExportRow[]>('/harvest/export/picker-detail').then(r => r.data)

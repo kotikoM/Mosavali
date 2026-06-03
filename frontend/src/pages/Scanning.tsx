@@ -4,8 +4,8 @@ import { flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from 
 import type { ColumnDef } from '@tanstack/react-table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
-import { ScanBarcode, X, Trash2, CheckCircle, ChevronRight, Box, BarChart2, Rows3, Package2, ChevronLeft } from 'lucide-react'
-import { checkBarcode, bulkScan, getEntries, getDailyStats } from '../api/harvest'
+import { ScanBarcode, X, Trash2, CheckCircle, ChevronRight, Box, BarChart2, Rows3, Package2, ChevronLeft, FileDown } from 'lucide-react'
+import { checkBarcode, bulkScan, getEntries, getDailyStats, getPickerDetailExport } from '../api/harvest'
 import { getBoxes } from '../api/boxes'
 import { getFields } from '../api/fields'
 import type { HarvestEntry, BarcodeCheckResponse } from '../api/harvest'
@@ -17,6 +17,7 @@ import DatePicker from '../components/DatePicker'
 import FieldManagementDialog from '../components/FieldManagementDialog'
 import BoxManagementDialog from '../components/BoxManagementDialog'
 import ScanErrorDialog from '../components/ScanErrorDialog'
+import { exportPickerDetailToExcel } from '../utils/exportPickerDetail'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -47,9 +48,16 @@ function isComplete(barcode: string): boolean {
   return /^\d{4}-\d{4}$/.test(barcode)
 }
 
-function formatBarcodeFilter(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8)
-  return [digits.slice(0, 4), digits.slice(4, 8)].filter(Boolean).join('-')
+// Build the search string passed to the API.
+function buildEntriesSearch(picker: string, box: string): string {
+  const p = picker.trim()
+  const b = box.trim()
+  if (!p && !b) return ''
+  const pp = p ? p.padStart(4, '0') : ''
+  const bb = b ? b.padStart(4, '0') : ''
+  if (pp && bb) return `${pp}-${bb}`
+  if (pp)       return pp
+  return `-${bb}`
 }
 
 // ── sub-components ─────────────────────────────────────────────────────
@@ -101,21 +109,36 @@ export default function Scanning() {
   const [toDate, setToDate]                   = useState(fmt(new Date()))
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
   const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
-  const [entriesSearch, setEntriesSearch]     = useState('')
+  const [pickerIdInput, setPickerIdInput]     = useState('')
+  const [boxNumInput, setBoxNumInput]         = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [entriesPage, setEntriesPage]         = useState(1)
+  const [exportingDetail, setExportingDetail] = useState(false)
 
-  // ── debounce search ──────────────────────────────────────────────
+  // ── debounce: rebuild search string whenever either input changes ─
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(entriesSearch), 300)
+    const t = setTimeout(() => {
+      setDebouncedSearch(buildEntriesSearch(pickerIdInput, boxNumInput))
+    }, 300)
     return () => clearTimeout(t)
-  }, [entriesSearch])
+  }, [pickerIdInput, boxNumInput])
 
   useEffect(() => { setEntriesPage(1) }, [debouncedSearch])
 
   // ── queries ──────────────────────────────────────────────────────
   const { data: boxes  = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
+
+  const handleExportDetail = async () =>{
+    if (exportingDetail) return
+      setExportingDetail(true)
+      try {
+        const data = await getPickerDetailExport()
+        await exportPickerDetailToExcel(data)
+      } finally {
+        setExportingDetail(false)
+    }
+  }
 
   const { data: todayStats } = useQuery({
     queryKey: ['harvest-stats-today'],
@@ -138,6 +161,7 @@ export default function Scanning() {
   const entriesTotal = entriesData?.total ?? 0
   const entriesPages = entriesData?.pages ?? 1
   const validCount   = queue.filter(q => q.status === 'valid').length
+  const hasSearch    = pickerIdInput.trim() !== '' || boxNumInput.trim() !== ''
 
   const barData = useMemo(() => {
     if (!statsData) return []
@@ -228,36 +252,48 @@ export default function Scanning() {
   })
 
   // ── table columns ────────────────────────────────────────────────
-  const entryColumns: ColumnDef<HarvestEntry>[] = [
-    {
-      header: 'Barcode', id: 'barcode',
-      accessorFn: row => `${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
-      cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
-    },
-    {
-      header: 'Picker ID', accessorKey: 'picker_id',
-      cell: info => <span className="font-mono text-sm text-neutral-500">#{info.getValue<number>()}</span>,
-    },
-    {
-      header: 'Field ID', accessorKey: 'field_id',
-      cell: info => <span className="font-mono text-sm text-neutral-500">#{info.getValue<number>()}</span>,
-    },
-    {
-      header: 'Box Number', accessorKey: 'box_number',
-      cell: info => <span className="font-mono text-sm text-neutral-500">{info.getValue<number>()}</span>,
-    },
-    {
-      header: 'Harvest Date', accessorKey: 'harvest_date',
-      cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
-    },
-  ]
+    const entryColumns: ColumnDef<HarvestEntry>[] = [
+      {
+        header: 'Barcode', id: 'barcode',
+        accessorFn: row => `${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
+        cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
+      },
+      {
+        header: 'Picker', id: 'picker',
+        accessorFn: row => `${row.picker_first_name} ${row.picker_last_name}`,
+        cell: info => (
+          <div>
+            <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
+            <span className="font-mono text-xs text-neutral-400">#{info.row.original.picker_id}</span>
+          </div>
+        ),
+      },
+      {
+        header: 'Box Type', id: 'box_type',
+        accessorFn: row => row.box_name,
+        cell: info => (
+          <div>
+            <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
+            <span className="text-xs text-neutral-400">{info.row.original.box_net_weight_kg} kg net</span>
+          </div>
+        ),
+      },
+      {
+        header: 'Field', accessorKey: 'field_name',
+        cell: info => <span className="text-sm text-neutral-700">{info.getValue<string>()}</span>,
+      },
+      {
+        header: 'Harvest Date', accessorKey: 'harvest_date',
+        cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
+      },
+    ]
 
   const entryTable = useReactTable({
-    data:                 entries,
-    columns:              entryColumns,
-    state:                { globalFilter: debouncedSearch },
-    getCoreRowModel:      getCoreRowModel(),
-    getFilteredRowModel:  getFilteredRowModel(),
+    data:                entries,
+    columns:             entryColumns,
+    state:               { globalFilter: debouncedSearch },
+    getCoreRowModel:     getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
   })
 
   // ── idle page ────────────────────────────────────────────────────
@@ -384,26 +420,66 @@ export default function Scanning() {
 
         {/* Entries table */}
         <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
-            <div>
-              <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
-              <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
+        <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100">
+          <div className="shrink-0">
+            <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
+            <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
+          </div>
+
+          <div className="w-px h-12 bg-neutral-200 shrink-0" />
+
+          <div className="flex items-center gap-1">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker ID</label>
+              <div className="relative">
+                <input
+                  value={pickerIdInput}
+                  onChange={e => setPickerIdInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0040"
+                  className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
+                />
+                {pickerIdInput && (
+                  <button onClick={() => setPickerIdInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <input
-                value={entriesSearch}
-                onChange={e => setEntriesSearch(formatBarcodeFilter(e.target.value))}
-                placeholder="PPPP-BBBB"
-                maxLength={9}
-                className="w-52 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider"
-              />
-              {entriesSearch && (
-                <button onClick={() => setEntriesSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                  <X size={14} />
-                </button>
-              )}
+
+            <span className="text-neutral-300 font-bold mt-5">—</span>
+
+            <div className="flex flex-col gap-0.5">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Box No.</label>
+              <div className="relative">
+                <input
+                  value={boxNumInput}
+                  onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0001"
+                  className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
+                />
+                {boxNumInput && (
+                  <button onClick={() => setBoxNumInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          <div className="w-px h-12 bg-neutral-200 shrink-0" />
+
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export All</label>
+            <button
+              onClick={handleExportDetail}
+              disabled={exportingDetail || entriesTotal === 0}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-neutral-200 text-sm font-semibold text-neutral-600 hover:border-primary-300 hover:text-primary-700 hover:bg-primary-50 active:bg-primary-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <FileDown size={15} strokeWidth={2.5} />
+              {exportingDetail ? 'Exporting…' : 'Excel'}
+            </button>
+          </div>
+        </div>
 
           {entriesLoading ? (
             <div className="flex items-center justify-center py-20 text-neutral-400 text-sm">Loading...</div>
@@ -434,7 +510,7 @@ export default function Scanning() {
                   {entries.length === 0 && (
                     <tr>
                       <td colSpan={entryColumns.length} className="px-6 py-20 text-center text-neutral-400 text-sm">
-                        {entriesSearch ? 'No entries match your search.' : 'No harvest entries yet.'}
+                        {hasSearch ? 'No entries match your search.' : 'No harvest entries yet.'}
                       </td>
                     </tr>
                   )}

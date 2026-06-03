@@ -45,3 +45,15 @@ class DailyStatEntry(BaseModel):
 class DailyStatsResponse(BaseModel):
     stats: list[DailyStatEntry]
     total: int
+
+class HarvestEntryRichResponse(BaseModel):
+    field_id:          int
+    picker_id:         int
+    box_number:        int
+    box_type_id:       int
+    harvest_date:      date
+    scan_date:         datetime
+    picker_first_name: str
+    picker_last_name:  str
+    box_name:          str
+    box_net_weight_kg: float
