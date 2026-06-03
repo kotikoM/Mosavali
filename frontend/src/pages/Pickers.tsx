@@ -195,7 +195,7 @@ export default function Pickers() {
         {/* Toolbar */}
         <div className="flex items-center justify-between border-b-2 border-neutral-100 px-6 py-5">
           <div>
-            <p className="text-xl font-bold text-neutral-900">Pickers Catalogue</p>
+            <p className="text-xl font-bold text-neutral-900">All Pickers</p>
             <p className="text-sm text-neutral-400">{pickers.length} registered</p>
           </div>
           <input
