@@ -40,6 +40,20 @@ export default function Dashboard() {
     queryFn:  () => getPickerBoxStats(heroDate, heroDate),
   })
 
+  const { data: allTimeStats = [] } = useQuery({
+    queryKey: ['picker-box-stats-alltime'],
+    queryFn:  () => getPickerBoxStats(),
+  })
+
+  const allTimeBoxTypes = useMemo(() => {
+    return allTimeStats.reduce((acc, p) => {
+      Object.entries(p.total_box_types).forEach(([name, count]) => {
+        acc[name] = (acc[name] ?? 0) + (count as number)
+      })
+      return acc
+    }, {} as Record<string, number>)
+  }, [allTimeStats])
+
   const pickersToday  = todayStats.length
   const boxesToday    = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
   const totalBoxTypes = todayStats.reduce((acc, p) => {
@@ -75,7 +89,7 @@ export default function Dashboard() {
     })
   }, [pickerDailyStats, dailySearch, dailyOriginSearch])
 
-  // ── Selection helpers ──────────────────────────────────────────────
+  // ── Selection helpers ─────────────────────────────────────────────
   const allSelected  = filteredDailyStats.length > 0 &&
                        filteredDailyStats.every(p => selectedPickerIds.has(p.picker_id))
   const someSelected = selectedPickerIds.size > 0
@@ -94,7 +108,6 @@ export default function Dashboard() {
         : new Set(filteredDailyStats.map(p => p.picker_id))
     )
 
-  // ── Sorted/paginated all-time table ───────────────────────────────
   const handleSort = (col: 'total_boxes' | 'total_kg') => {
     if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
     else { setSortBy(col); setSortDir('desc') }
@@ -109,10 +122,8 @@ export default function Dashboard() {
     return filtered.sort((a, b) => sortDir === 'desc' ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy])
   }, [pickerStats, pickerSearch, originSearch, sortBy, sortDir])
 
-  // ── Effects ───────────────────────────────────────────────────────
   useEffect(() => { setPickerPage(1) }, [pickerSearch, originSearch, sortBy, sortDir])
 
-  // Clear selection when range or filters change
   useEffect(() => {
     setSelectedPickerIds(new Set())
   }, [dailyFrom, dailyTo, dailySearch, dailyOriginSearch])
@@ -149,146 +160,163 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
-      </div>
+      {/* ── ABOVE THE FOLD — fills exactly one viewport height ───────── */}
+      <div className="flex flex-col gap-6 min-h-[calc(100vh-4rem)]">
 
-      {/* ── DAY HERO ─────────────────────────────────────────────── */}
-      <div className="bg-primary-700 rounded-2xl overflow-hidden">
+        <div>
+          <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
+        </div>
 
-        <div className="px-8 pt-7 pb-0 flex items-center gap-6">
-          <div>
-            <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
+        {/* ── DAY HERO ─────────────────────────────────────────────── */}
+        <div className="bg-primary-700 rounded-2xl overflow-hidden shrink-0">
+
+          <div className="px-8 pt-7 pb-0 flex items-center gap-6">
+            <div>
+              <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
+            </div>
+            <div className="w-px h-8 bg-primary-500 shrink-0" />
+            <div className="flex flex-col gap-1">
+              <DatePicker
+                value={heroDate}
+                onChange={setHeroDate}
+                className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
+              />
+            </div>
           </div>
-          <div className="w-px h-8 bg-primary-500 shrink-0" />
-          <div className="flex flex-col gap-1">
-            <DatePicker
-              value={heroDate}
-              onChange={setHeroDate}
-              className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
-            />
+
+          <div className="grid grid-cols-3 mt-2">
+
+            <div className="relative flex flex-col px-8 py-8">
+              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
+              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                {todayLoading ? '—' : pickersToday}
+              </span>
+            </div>
+
+            <div className="relative flex flex-col px-8 py-8">
+              <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
+              <div className="flex items-end gap-6">
+                <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                  {todayLoading ? '—' : boxesToday.toLocaleString()}
+                </span>
+                {!todayLoading && Object.keys(totalBoxTypes).length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2.5">
+                    {Object.entries(totalBoxTypes).map(([boxName, count]) => (
+                      <span key={boxName} className="text-sm font-semibold text-primary-200 whitespace-nowrap">
+                        {boxName}: {count.toLocaleString()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col px-8 py-8">
+              <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
+              <div className="flex items-baseline gap-4">
+                <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
+                  {todayLoading ? '—' : kgToday.toLocaleString()}
+                </span>
+                <span className="text-4xl font-black text-primary-100">kg</span>
+              </div>
+            </div>
+
           </div>
         </div>
 
-        <div className="grid grid-cols-3 mt-2">
+        {/* ── ALL-TIME STATS + FIELD PIE ─────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-4 items-stretch flex-1 min-h-0">
 
-          <div className="relative flex flex-col px-8 py-8">
-            <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
-            <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-              {todayLoading ? '—' : pickersToday}
-            </span>
-          </div>
-
-          <div className="relative flex flex-col px-8 py-8">
-            <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
-            <div className="flex items-end gap-6">
-              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-                {todayLoading ? '—' : boxesToday.toLocaleString()}
-              </span>
-              {!todayLoading && Object.keys(totalBoxTypes).length > 0 && (
-                <div className="flex flex-col gap-1.5 mb-2.5">
-                  {Object.entries(totalBoxTypes).map(([boxName, count]) => (
-                    <span key={boxName} className="text-sm font-semibold text-primary-200 whitespace-nowrap">
-                      {boxName}: {count.toLocaleString()}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col px-8 py-8">
-            <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
-            <div className="flex items-baseline gap-4">
-              <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-                {todayLoading ? '—' : kgToday.toLocaleString()}
-              </span>
-              <span className="text-4xl font-black text-primary-100">kg</span>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* ── ALL-TIME STATS + FIELD PIE ──────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4 items-stretch">
-
-        {/* All-time stats */}
-        <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
-          <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
-          <p className="text-sm text-neutral-400 mb-6">Harvest totals</p>
-          <div className="flex gap-4 flex-1">
-            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
-              <p className="text-6xl font-black text-neutral-400 leading-none">
-                {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
-              </p>
-            </div>
-            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
-              <p className="text-6xl font-black text-neutral-400 leading-none">
-                {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
-              </p>
-            </div>
-            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-              <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
-              <div className="flex items-baseline gap-2">
+          {/* All-time stats */}
+          <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
+            <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
+            <p className="text-sm text-neutral-400 mb-6">Harvest totals</p>
+            <div className="flex gap-4 flex-1">
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
                 <p className="text-6xl font-black text-neutral-400 leading-none">
-                  {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
+                  {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
                 </p>
-                <span className="text-2xl font-black text-neutral-400">kg</span>
+              </div>
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
+                <div className="flex items-end gap-4">
+                  <p className="text-6xl font-black text-neutral-400 leading-none">
+                    {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
+                  </p>
+                  {Object.keys(allTimeBoxTypes).length > 0 && (
+                    <div className="flex flex-col gap-1 mb-1">
+                      {Object.entries(allTimeBoxTypes).map(([name, count]) => (
+                        <div key={name} className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-neutral-400">{name}:</span>
+                          <span className="font-mono text-sm font-bold text-neutral-500">{count.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
+                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-6xl font-black text-neutral-400 leading-none">
+                    {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
+                  </p>
+                  <span className="text-2xl font-black text-neutral-400">kg</span>
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Field pie */}
+          <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
+            <div className="mb-6">
+              <p className="text-xl font-bold text-neutral-900">Harvest By Field</p>
+              <p className="text-sm text-neutral-400">kg harvested — all time</p>
+            </div>
+            {fieldStatsLoading ? (
+              <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
+            ) : fieldStats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 gap-2">
+                <p className="text-neutral-400 text-sm">No field data yet</p>
+              </div>
+            ) : (
+              <div className="flex flex-col flex-1 gap-4 min-h-0">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
+                      {fieldStats.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-col gap-2 overflow-y-auto">
+                  {fieldStats.map((f, idx) => {
+                    const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
+                    const pct   = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
+                    return (
+                      <div key={f.field_id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                          <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-neutral-400">{pct}%</span>
+                          <span className="font-mono text-xs font-bold text-neutral-700">{f.total_kg.toLocaleString()} kg</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Field pie */}
-        <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
-          <div className="mb-6">
-            <p className="text-xl font-bold text-neutral-900">Harvest By Field</p>
-            <p className="text-sm text-neutral-400">kg harvested — all time</p>
-          </div>
-          {fieldStatsLoading ? (
-            <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
-          ) : fieldStats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 gap-2">
-              <p className="text-neutral-400 text-sm">No field data yet</p>
-            </div>
-          ) : (
-            <div className="flex flex-col flex-1 gap-4">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
-                    {fieldStats.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-col gap-2">
-                {fieldStats.map((f, idx) => {
-                  const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
-                  const pct   = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
-                  return (
-                    <div key={f.field_id} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
-                        <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-neutral-400">{pct}%</span>
-                        <span className="font-mono text-xs font-bold text-neutral-700">{f.total_kg.toLocaleString()} kg</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
+      {/* ── END ABOVE THE FOLD ───────────────────────────────────────── */}
 
       {/* ── PICKER HARVEST TABLE ────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
@@ -467,8 +495,14 @@ export default function Dashboard() {
               <table>
                 <thead>
                   <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                    {/* Checkbox — select all */}
                     <th className="px-4 py-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
+                        title={allSelected ? 'Deselect all' : 'Select all'}
+                      />
                     </th>
                     <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest whitespace-nowrap w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
@@ -485,19 +519,19 @@ export default function Dashboard() {
                         onClick={() => togglePicker(p.picker_id)}
                         onMouseEnter={() => setHoveredPicker(p.picker_id)}
                         onMouseLeave={() => setHoveredPicker(null)}
-                        className="border-b border-neutral-100 transition-colors"
+                        className="border-b border-neutral-100 transition-colors cursor-pointer"
                         style={{
                           backgroundColor: isSelected
                             ? '#EDF5EC'
                             : hoveredPicker === p.picker_id ? '#F0F5EF' : '',
                         }}
                       >
-                        {/* Checkbox */}
                         <td className="px-4 py-4 align-middle">
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
+                            onChange={() => {}}
+                            className="w-4 h-4 rounded accent-primary-600 pointer-events-none"
                           />
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap align-middle">
