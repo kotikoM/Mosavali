@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { MasterExportData } from '../utils/exportMaster'
 
 const api = axios.create({ baseURL: 'http://localhost:8000' })
 
@@ -182,3 +183,6 @@ export const getFieldStats = (from?: string, to?: string) =>
 
 export const getPickerDetailExport = () =>
   api.get<PickerDetailExportRow[]>('/harvest/export/picker-detail').then(r => r.data)
+
+export const getMasterExport = () =>
+  api.get<MasterExportData>('/export/master').then(r => r.data)

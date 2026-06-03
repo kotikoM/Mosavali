@@ -9,7 +9,7 @@ from app.routers.harvest_scan    import router as harvest_scan_router
 from app.routers.harvest_entries import router as harvest_entries_router
 from app.routers.harvest_stats   import router as harvest_stats_router
 from app.routers.harvest_export   import router as harvest_export_router
-
+from app.routers.master_export import router as master_export_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,7 +33,7 @@ app.include_router(harvest_scan_router)
 app.include_router(harvest_stats_router)
 app.include_router(harvest_entries_router)
 app.include_router(harvest_export_router)
-
+app.include_router(master_export_router)
 
 @app.get("/health")
 async def health():
