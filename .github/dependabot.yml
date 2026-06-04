@@ -1,0 +1,112 @@
+version: 2
+
+updates:
+
+  # ── Python / FastAPI backend ────────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tbilisi"
+    open-pull-requests-limit: 10
+
+    # Group minor + patch bumps into one PR per week instead of one PR per package.
+    # Major version bumps always get their own PR so you can review them carefully.
+    groups:
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Packages you want to pin or ignore entirely
+    ignore:
+      # Example: ignore all updates to SQLAlchemy major versions (breaking changes)
+      # - dependency-name: "sqlalchemy"
+      #   update-types: ["version-update:semver-major"]
+
+    labels:
+      - "dependencies"
+      - "python"
+
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    reviewers:
+      - "your-github-username"   # replace or remove
+
+
+  # ── React / Node frontend ───────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"   # adjust to where your package.json lives
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tbilisi"
+    open-pull-requests-limit: 10
+
+    groups:
+      # Batch all non-breaking React ecosystem updates together
+      react-ecosystem:
+        patterns:
+          - "react"
+          - "react-*"
+          - "@types/react*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Batch all other minor + patch npm updates together
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "react"
+          - "react-*"
+          - "@types/react*"
+
+    ignore:
+      # Example: ignore major bumps on vite (often require config changes)
+      # - dependency-name: "vite"
+      #   update-types: ["version-update:semver-major"]
+
+    labels:
+      - "dependencies"
+      - "javascript"
+
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+    reviewers:
+      - "your-github-username"   # replace or remove
+
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  # Keeps your workflow action versions (e.g. actions/checkout) up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"    # Actions change slowly; monthly is enough
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tbilisi"
+    open-pull-requests-limit: 5
+
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
