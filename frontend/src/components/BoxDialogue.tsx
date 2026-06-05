@@ -9,6 +9,42 @@ interface Props {
   loading:  boolean
 }
 
+// ── Weight input safeguards ───────────────────────────────────────────
+const MAX_DECIMAL = 3
+
+function sanitizeWeight(raw: string): string {
+  // Strip everything except digits and the first dot
+  let v = raw.replace(/[^0-9.]/g, '')
+  const parts = v.split('.')
+  if (parts.length > 1) v = parts[0] + '.' + parts.slice(1).join('')
+  // Limit decimal places
+  const [whole, frac] = v.split('.')
+  if (frac !== undefined && frac.length > MAX_DECIMAL)
+    v = whole + '.' + frac.slice(0, MAX_DECIMAL)
+  return v
+}
+
+function onWeightKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  const passthrough = [
+    'Backspace', 'Delete', 'Tab',
+    'ArrowLeft', 'ArrowRight', 'Home', 'End',
+  ]
+  if (passthrough.includes(e.key)) return
+  if (e.key === '.' && !e.currentTarget.value.includes('.')) return
+  if (/^[0-9]$/.test(e.key)) return
+  e.preventDefault()
+}
+
+function onWeightPaste(
+  e:   React.ClipboardEvent<HTMLInputElement>,
+  set: (v: string) => void,
+) {
+  e.preventDefault()
+  set(sanitizeWeight(e.clipboardData.getData('text')))
+}
+
+// ─────────────────────────────────────────────────────────────────────
+
 export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
   const [form, setForm] = useState({
     name:            '',
@@ -75,7 +111,7 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
             <div className="flex items-start justify-between mb-8">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-neutral-900">Register Box Type</h2>
-                <p className="mt-1 text-sm text-neutral-500">Define a new container weight profile.</p>
+                <p className="mt-1 text-sm text-neutral-500">Define a new container weights.</p>
               </div>
               <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 transition-colors mt-1">
                 <X size={22} />
@@ -105,11 +141,14 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
                   <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Empty Weight (kg)</label>
                   <div className="relative mt-2">
                     <input
-                      type="number"
-                      step="0.001"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
+                      maxLength={7}
                       value={form.empty_weight_kg}
-                      onChange={e => setForm(f => ({ ...f, empty_weight_kg: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, empty_weight_kg: sanitizeWeight(e.target.value) }))}
+                      onKeyDown={onWeightKeyDown}
+                      onPaste={e => onWeightPaste(e, v => setForm(f => ({ ...f, empty_weight_kg: v })))}
+                      placeholder="0.000"
                       className={`w-full rounded-xl border bg-neutral-50 px-4 py-3 pr-12 text-sm outline-none transition-colors focus:border-primary
                         ${errors.empty_weight_kg ? 'border-red-400' : 'border-neutral-200'}`}
                     />
@@ -122,11 +161,14 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
                   <label className="text-xs font-bold uppercase tracking-wide text-neutral-500">Full Weight (kg)</label>
                   <div className="relative mt-2">
                     <input
-                      type="number"
-                      step="0.001"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
+                      maxLength={7}
                       value={form.full_weight_kg}
-                      onChange={e => setForm(f => ({ ...f, full_weight_kg: e.target.value }))}
+                      onChange={e => setForm(f => ({ ...f, full_weight_kg: sanitizeWeight(e.target.value) }))}
+                      onKeyDown={onWeightKeyDown}
+                      onPaste={e => onWeightPaste(e, v => setForm(f => ({ ...f, full_weight_kg: v })))}
+                      placeholder="0.000"
                       className={`w-full rounded-xl border bg-neutral-50 px-4 py-3 pr-12 text-sm outline-none transition-colors focus:border-primary
                         ${errors.full_weight_kg || fullWeightBelowEmpty ? 'border-red-400' : 'border-neutral-200'}`}
                     />
@@ -147,7 +189,7 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
                   rows={3}
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Industrial grade vented crate for soft fruit varieties."
+                  placeholder="e.g. Standard harvest crate for blueberries and raspberries."
                   className="mt-2 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none transition-colors focus:border-primary"
                 />
               </div>
@@ -175,47 +217,46 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
           </div>
 
           {/* Right panel */}
-{/* Right panel */}
-<div className="w-80 shrink-0 bg-neutral-100 flex items-center justify-center p-8">
-  <div className="w-full max-w-[260px] rounded-3xl bg-white p-6 shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-neutral-100">
+          <div className="w-80 shrink-0 bg-neutral-100 flex items-center justify-center p-8">
+            <div className="w-full max-w-[260px] rounded-3xl bg-white p-6 shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-neutral-100">
 
-    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 text-center">
-      Live Calculation
-    </p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 text-center">
+                Calculation
+              </p>
 
-    <div className="mt-5 flex flex-col items-center justify-center">
-      <p className="text-sm text-neutral-500">Net Weight</p>
+              <div className="mt-5 flex flex-col items-center justify-center">
+                <p className="text-sm text-neutral-500">Net Weight</p>
 
-      <div className="mt-3 w-full text-center">
-        <span
-          className={`
-            block w-full overflow-hidden text-ellipsis break-words
-            text-4xl leading-none font-black tracking-tight
-            ${netWeight === null
-              ? 'text-neutral-300'
-              : netWeight <= 0
-                ? 'text-red-500'
-                : 'text-primary-900'}
-          `}
-        >
-          {netWeight === null ? '—' : netWeight.toFixed(3)}
-        </span>
+                <div className="mt-3 w-full text-center">
+                  <span
+                    className={`
+                      block w-full overflow-hidden text-ellipsis break-words
+                      text-4xl leading-none font-black tracking-tight
+                      ${netWeight === null
+                        ? 'text-neutral-300'
+                        : netWeight <= 0
+                          ? 'text-red-500'
+                          : 'text-primary-900'}
+                    `}
+                  >
+                    {netWeight === null ? '—' : netWeight.toFixed(3)}
+                  </span>
 
-        {netWeight !== null && (
-          <span className="mt-2 block text-sm font-semibold text-neutral-400">
-            kg
-          </span>
-        )}
-      </div>
+                  {netWeight !== null && (
+                    <span className="mt-2 block text-sm font-semibold text-neutral-400">
+                      kg
+                    </span>
+                  )}
+                </div>
 
-      {netWeight !== null && netWeight <= 0 && (
-        <p className="mt-3 text-center text-xs font-medium text-red-500">
-          Invalid weight range
-        </p>
-      )}
-    </div>
-  </div>
-</div>
+                {netWeight !== null && netWeight <= 0 && (
+                  <p className="mt-3 text-center text-xs font-medium text-red-500">
+                    Invalid weight range
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
 
         </div>
       </div>
