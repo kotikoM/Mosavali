@@ -14,6 +14,17 @@ from app.schemas.print_batch import (
     PrintQueueRequest,
     GeneratePdfRequest,
 )
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
+
+_GEO_FONT = "NotoSansGeorgian"
+pdfmetrics.registerFont(
+    TTFont(
+        _GEO_FONT,
+        os.path.join(os.path.dirname(__file__), "..", "fonts", "NotoSansGeorgian-Regular.ttf"),
+    )
+)
 
 router = APIRouter(prefix="/print-batches", tags=["print-batches"])
 
@@ -95,14 +106,14 @@ async def generate_pdf(
         await db.refresh(batch)
 
     # ── Sticker dimensions ────────────────────────────────────────────
-    s        = req.scale
-    W        = 97  * mm
-    margin   = 3   * mm
-    gap      = 2   * mm
-    code_h   = 7   * mm
-    name_h   = 6   * mm
-    bc_h     = 20 * mm
-    H        = margin * 2 + bc_h + gap + code_h + gap + name_h
+    s = req.scale
+    W = 97 * mm
+    margin = 2 * mm
+    gap = 1 * mm
+    code_h = 7 * mm
+    name_h = 5 * mm
+    bc_h = 20 * mm
+    H = margin * 2 + bc_h + gap + code_h + gap + name_h
 
     # y anchors (ReportLab: y=0 is bottom-left)
     # top→bottom on paper: barcode → code text → name
@@ -139,7 +150,7 @@ async def generate_pdf(
             c.drawCentredString(W / 2, code_y + 2 * mm, code_str)
 
             # Row 3 — picker name
-            c.setFont("Helvetica", name_font)
+            c.setFont(_GEO_FONT, name_font)
             c.drawCentredString(W / 2, name_y + 2 * mm, name)
 
             c.showPage()
