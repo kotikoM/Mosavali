@@ -245,7 +245,7 @@ export default function Dashboard() {
           {/* All-time stats */}
           <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col min-w-0">
             <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
-            <p className="text-sm text-neutral-400 mb-6">Harvest totals</p>
+            <p className="text-sm text-neutral-400 mb-6">Harvest totals{overview?.first_harvest_date && (<span className="ml-2 text-neutral-300">— since {format(parseISO(overview.first_harvest_date), 'MMM d, yyyy')}</span>)}</p>
             <div className="flex gap-4">
               <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
                 <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Registered Pickers</p>

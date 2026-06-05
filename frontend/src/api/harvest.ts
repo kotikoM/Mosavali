@@ -64,6 +64,7 @@ export interface HarvestOverview {
   total_pickers: number
   total_scanned: number
   total_kg:      number
+  first_harvest_date: string | null
 }
 
 export interface PickerStat {
