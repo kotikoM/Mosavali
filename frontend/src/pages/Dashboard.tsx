@@ -10,7 +10,30 @@ import { exportDailyHarvestToExcel } from '../utils/exportDailyHarvest'
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
 const PAGE_SIZE  = 10
-const PIE_COLORS = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
+const PIE_BASE_COLOR = '#2D5A27'
+
+function buildPieColors(baseHex: string, count: number): string[] {
+  const r = parseInt(baseHex.slice(1, 3), 16) / 255
+  const g = parseInt(baseHex.slice(3, 5), 16) / 255
+  const b = parseInt(baseHex.slice(5, 7), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2
+  let h = 0, s = 0
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    if (max === r)      h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+    else if (max === g) h = ((b - r) / d + 2) / 6
+    else                h = ((r - g) / d + 4) / 6
+  }
+  const hDeg = Math.round(h * 360)
+  const sPct = Math.round(s * 100)
+  const MIN_STEP = 0.22
+  const step = Math.max((0.88 - l) / Math.max(count - 1, 1), MIN_STEP)
+  return Array.from({ length: count }, (_, i) => {
+    const lPct = Math.min(Math.round((l + i * step) * 100), 88)
+    return `hsl(${hDeg}, ${sPct}%, ${lPct}%)`
+  })
+}
 
 export default function Dashboard() {
 
@@ -44,6 +67,11 @@ export default function Dashboard() {
     queryKey: ['picker-box-stats-alltime'],
     queryFn:  () => getPickerBoxStats(),
   })
+
+  const pieColors = useMemo(
+    () => buildPieColors(PIE_BASE_COLOR, Math.max(fieldStats.length, 1)),
+    [fieldStats.length]
+  )
 
   const allTimeBoxTypes = useMemo(() => {
     return allTimeStats.reduce((acc, p) => {
@@ -160,8 +188,12 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── ABOVE THE FOLD — fills exactly one viewport height ───────── */}
-      <div className="flex flex-col gap-6 min-h-[calc(100vh-4rem)]">
+      {/* ── ABOVE THE FOLD ───────────────────────────────────────────
+           Removed min-h-[calc(100vh-4rem)] — it caused the all-time
+           stat cards to stretch to fill the remaining viewport height
+           when zoomed out, pushing numbers to the bottom of huge empty boxes.
+      ──────────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-6">
 
         <div>
           <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
@@ -186,7 +218,9 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-3 mt-2">
 
-            <div className="relative flex flex-col px-8 py-8">
+            {/* Each hero cell gets overflow-hidden so 100px numbers
+                can't burst the layout at extreme zoom levels */}
+            <div className="relative flex flex-col px-8 py-8 overflow-hidden">
               <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
               <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
@@ -194,7 +228,7 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <div className="relative flex flex-col px-8 py-8">
+            <div className="relative flex flex-col px-8 py-8 overflow-hidden">
               <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
               <div className="flex items-end gap-6">
@@ -213,7 +247,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex flex-col px-8 py-8">
+            <div className="flex flex-col px-8 py-8 overflow-hidden">
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
               <div className="flex items-baseline gap-4">
                 <span className="font-mono font-black text-white leading-none" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
@@ -226,22 +260,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── ALL-TIME STATS + FIELD PIE ─────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-4 items-stretch flex-1 min-h-0">
+        {/* ── ALL-TIME STATS + FIELD PIE ─────────────────────────────
+             Removed flex-1 min-h-0 from the grid — those made the grid
+             grow to fill the (now-removed) viewport-height constraint,
+             which is what stretched the stat cards so tall.
+        ──────────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-4 items-stretch">
 
           {/* All-time stats */}
-          <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
+          <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col min-w-0">
             <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
             <p className="text-sm text-neutral-400 mb-6">Harvest totals</p>
-            <div className="flex gap-4 flex-1">
-              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Registered Pickers</p>
+            {/* Removed flex-1 here — it was pulling the inner flex to fill
+                the outer card's stretched height, which came from the grid */}
+            <div className="flex gap-4">
+              {/* Changed justify-between → gap-3 so label+value stack
+                  naturally at top instead of being pushed apart.
+                  Changed text-lg tracking-widest → text-xs tracking-wider
+                  to prevent label wrapping at high zoom levels. */}
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
+                <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Registered Pickers</p>
                 <p className="text-6xl font-black text-neutral-400 leading-none">
                   {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
                 </p>
               </div>
-              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Boxes Scanned</p>
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
+                <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Boxes Scanned</p>
                 <div className="flex items-end gap-4">
                   <p className="text-6xl font-black text-neutral-400 leading-none">
                     {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
@@ -258,8 +302,8 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col justify-between">
-                <p className="text-lg font-bold text-neutral-400 uppercase tracking-widest">Total Harvested</p>
+              <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
+                <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Total Harvested</p>
                 <div className="flex items-baseline gap-2">
                   <p className="text-6xl font-black text-neutral-400 leading-none">
                     {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
@@ -283,15 +327,17 @@ export default function Dashboard() {
                 <p className="text-neutral-400 text-sm">No field data yet</p>
               </div>
             ) : (
-              <div className="flex flex-col flex-1 gap-4 min-h-0">
-                <ResponsiveContainer width="100%" height={200}>
+              <div className="flex flex-1 gap-4 min-h-0 items-center">
+              <div className="shrink-0" style={{ width: 150, height: 150 }}>
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
-                      {fieldStats.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
+                    <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={38} outerRadius={65} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
+                      {fieldStats.map((_, idx) => <Cell key={idx} fill={pieColors[idx % pieColors.length]} />)}
                     </Pie>
                     <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
                 <div className="flex flex-col gap-2 overflow-y-auto">
                   {fieldStats.map((f, idx) => {
                     const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
@@ -299,8 +345,9 @@ export default function Dashboard() {
                     return (
                       <div key={f.field_id} className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pieColors[idx % pieColors.length] }} />
                           <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
+                          <span className="flex-1 overflow-hidden whitespace-nowrap text-xs text-neutral-300 tracking-widest">{'- '.repeat(40)}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs text-neutral-400">{pct}%</span>
@@ -419,14 +466,19 @@ export default function Dashboard() {
       {/* ── DAILY HARVEST TABLE ─────────────────────────────────────── */}
       <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white' : 'rounded-2xl'}`}>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
+        {/* Toolbar
+             Added flex-wrap + gap-x-6 gap-y-4 so controls reflow to the
+             next line at high zoom instead of overflowing or clipping.
+             gap-x-6 preserves the original horizontal spacing; gap-y-4
+             gives breathing room between wrapped rows.
+        */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
           <div className="shrink-0">
             <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
             <p className="text-sm text-neutral-400">kg per picker per day</p>
           </div>
-          <div className="w-px h-12 bg-neutral-200 shrink-0" />
-          <div className="flex items-end gap-3">
+          <div className="w-px h-12 bg-neutral-200 shrink-0 hidden sm:block" />
+          <div className="flex items-end gap-3 shrink-0">
             <div className="flex flex-col gap-0.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
               <DatePicker value={dailyFrom} onChange={setDailyFrom} />
@@ -437,15 +489,15 @@ export default function Dashboard() {
               <DatePicker value={dailyTo} onChange={setDailyTo} />
             </div>
           </div>
-          <div className="w-px h-12 bg-neutral-200 shrink-0" />
-          <div className="flex flex-col gap-0.5">
+          <div className="w-px h-12 bg-neutral-200 shrink-0 hidden sm:block" />
+          <div className="flex flex-col gap-0.5 shrink-0">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker</label>
             <div className="relative">
               <input value={dailySearch} onChange={e => setDailySearch(e.target.value)} placeholder="Search by name..." className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8" />
               {dailySearch && <button onClick={() => setDailySearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"><X size={14} /></button>}
             </div>
           </div>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-0.5 shrink-0">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Origin</label>
             <div className="relative">
               <input
@@ -463,8 +515,8 @@ export default function Dashboard() {
           </div>
 
           {/* Export */}
-          <div className="w-px h-12 bg-neutral-200 shrink-0" />
-          <div className="flex flex-col items-start gap-0.5">
+          <div className="w-px h-12 bg-neutral-200 shrink-0 hidden sm:block" />
+          <div className="flex flex-col items-start gap-0.5 shrink-0">
             <label className="whitespace-nowrap text-xs font-bold text-neutral-400 uppercase tracking-widest">
               Export{someSelected ? <span className="ml-1.5 text-primary-600">· {selectedPickerIds.size} selected</span> : ''}
             </label>
@@ -495,15 +547,7 @@ export default function Dashboard() {
               <table>
                 <thead>
                   <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                    <th className="px-4 py-4 w-10">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={toggleAll}
-                        className="w-4 h-4 rounded accent-primary-600 cursor-pointer"
-                        title={allSelected ? 'Deselect all' : 'Select all'}
-                      />
-                    </th>
+                    <th className="px-4 py-4 w-10"></th>
                     <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest whitespace-nowrap w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total kg</th>
