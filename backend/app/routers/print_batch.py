@@ -161,7 +161,7 @@ async def generate_pdf(
     return StreamingResponse(
         buf,
         media_type="application/pdf",
-        headers={"Content-Disposition": "inline; filename=stickers.pdf"},
+        headers={"Content-Disposition": "attachment; filename=\"stickers.pdf\""},
     )
 
 
