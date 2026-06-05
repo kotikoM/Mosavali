@@ -37,28 +37,24 @@ function buildPieColors(baseHex: string, count: number): string[] {
 
 export default function Dashboard() {
 
-  const [pickerSearch, setPickerSearch]     = useState('')
-  const [pickerPage, setPickerPage]         = useState(1)
-  const [sortBy, setSortBy]                 = useState<'total_boxes' | 'total_kg'>('total_boxes')
-  const [sortDir, setSortDir]               = useState<'desc' | 'asc'>('desc')
-  const [dailyFrom, setDailyFrom]           = useState(fmt(new Date()))
-  const [dailyTo, setDailyTo]               = useState(fmt(new Date()))
-  const [dailyMaximized, setDailyMaximized] = useState(false)
-  const [hoveredPicker, setHoveredPicker]   = useState<number | null>(null)
-  const [dailySearch, setDailySearch]       = useState('')
-  const [heroDate, setHeroDate]             = useState(fmt(new Date()))
-  const [originSearch, setOriginSearch]     = useState('')
+  const [dailySortBy, setDailySortBy]           = useState<'total_boxes' | 'total_kg'>('total_boxes')
+  const [dailySortDir, setDailySortDir]         = useState<'desc' | 'asc'>('desc')
+  const [dailyFrom, setDailyFrom]               = useState(fmt(new Date()))
+  const [dailyTo, setDailyTo]                   = useState(fmt(new Date()))
+  const [dailyMaximized, setDailyMaximized]     = useState(false)
+  const [hoveredPicker, setHoveredPicker]       = useState<number | null>(null)
+  const [dailySearch, setDailySearch]           = useState('')
+  const [heroDate, setHeroDate]                 = useState(fmt(new Date()))
   const [dailyOriginSearch, setDailyOriginSearch] = useState('')
-  const [exporting, setExporting]           = useState(false)
+  const [exporting, setExporting]               = useState(false)
   const [selectedPickerIds, setSelectedPickerIds] = useState<Set<number>>(new Set())
 
   const today = fmt(new Date())
 
-  const { data: overview,              isLoading: overviewLoading    } = useQuery({ queryKey: ['harvest-overview'],                      queryFn: getHarvestOverview })
-  const { data: pickerStats = [],      isLoading: pickerStatsLoading } = useQuery({ queryKey: ['picker-stats'],                         queryFn: getPickerStats })
-  const { data: pickerDailyStats = [], isLoading: dailyLoading       } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo],  queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
-  const { data: fieldStats = [],       isLoading: fieldStatsLoading  } = useQuery({ queryKey: ['field-stats'],                          queryFn: () => getFieldStats() })
-  const { data: todayStats = [],       isLoading: todayLoading       } = useQuery({
+  const { data: overview,              isLoading: overviewLoading   } = useQuery({ queryKey: ['harvest-overview'],                      queryFn: getHarvestOverview })
+  const { data: pickerDailyStats = [], isLoading: dailyLoading      } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo],  queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
+  const { data: fieldStats = [],       isLoading: fieldStatsLoading } = useQuery({ queryKey: ['field-stats'],                          queryFn: () => getFieldStats() })
+  const { data: todayStats = [],       isLoading: todayLoading      } = useQuery({
     queryKey: ['picker-box-stats-hero', heroDate],
     queryFn:  () => getPickerBoxStats(heroDate, heroDate),
   })
@@ -110,12 +106,15 @@ export default function Dashboard() {
   }, [pickerDailyStats])
 
   const filteredDailyStats = useMemo(() => {
-    return pickerDailyStats.filter(p => {
+    const filtered = pickerDailyStats.filter(p => {
       const nameMatch   = !dailySearch.trim()       || `${p.first_name} ${p.last_name}`.toLowerCase().includes(dailySearch.toLowerCase()) || p.national_id.includes(dailySearch)
       const originMatch = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.toLowerCase())
       return nameMatch && originMatch
     })
-  }, [pickerDailyStats, dailySearch, dailyOriginSearch])
+    return filtered.sort((a, b) =>
+      dailySortDir === 'desc' ? b[dailySortBy] - a[dailySortBy] : a[dailySortBy] - b[dailySortBy]
+    )
+  }, [pickerDailyStats, dailySearch, dailyOriginSearch, dailySortBy, dailySortDir])
 
   // ── Selection helpers ─────────────────────────────────────────────
   const allSelected  = filteredDailyStats.length > 0 &&
@@ -136,21 +135,15 @@ export default function Dashboard() {
         : new Set(filteredDailyStats.map(p => p.picker_id))
     )
 
-  const handleSort = (col: 'total_boxes' | 'total_kg') => {
-    if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    else { setSortBy(col); setSortDir('desc') }
+  const handleDailySort = (col: 'total_boxes' | 'total_kg') => {
+    if (dailySortBy === col) setDailySortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setDailySortBy(col); setDailySortDir('desc') }
   }
 
-  const filteredPickers = useMemo(() => {
-    const filtered = pickerStats.filter(p => {
-      const nameMatch   = !pickerSearch.trim() || `${p.first_name} ${p.last_name}`.toLowerCase().includes(pickerSearch.toLowerCase())
-      const originMatch = !originSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(originSearch.toLowerCase())
-      return nameMatch && originMatch
-    })
-    return filtered.sort((a, b) => sortDir === 'desc' ? b[sortBy] - a[sortBy] : a[sortBy] - b[sortBy])
-  }, [pickerStats, pickerSearch, originSearch, sortBy, sortDir])
-
-  useEffect(() => { setPickerPage(1) }, [pickerSearch, originSearch, sortBy, sortDir])
+  const DailySortIcon = ({ col }: { col: 'total_boxes' | 'total_kg' }) => {
+    if (dailySortBy !== col) return <span className="text-neutral-300 text-xs">↕</span>
+    return dailySortDir === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />
+  }
 
   useEffect(() => {
     setSelectedPickerIds(new Set())
@@ -163,14 +156,6 @@ export default function Dashboard() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [dailyMaximized])
-
-  const pickerPageCount  = Math.ceil(filteredPickers.length / PAGE_SIZE)
-  const paginatedPickers = filteredPickers.slice((pickerPage - 1) * PAGE_SIZE, pickerPage * PAGE_SIZE)
-
-  const SortIcon = ({ col }: { col: 'total_boxes' | 'total_kg' }) => {
-    if (sortBy !== col) return <span className="text-neutral-300 text-xs">↕</span>
-    return sortDir === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />
-  }
 
   const handleExportExcel = async () => {
     if (exporting || filteredDailyStats.length === 0) return
@@ -188,11 +173,7 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── ABOVE THE FOLD ───────────────────────────────────────────
-           Removed min-h-[calc(100vh-4rem)] — it caused the all-time
-           stat cards to stretch to fill the remaining viewport height
-           when zoomed out, pushing numbers to the bottom of huge empty boxes.
-      ──────────────────────────────────────────────────────────────── */}
+      {/* ── ABOVE THE FOLD ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-6">
 
         <div>
@@ -218,8 +199,6 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-3 mt-2">
 
-            {/* Each hero cell gets overflow-hidden so 100px numbers
-                can't burst the layout at extreme zoom levels */}
             <div className="relative flex flex-col px-8 py-8 overflow-hidden">
               <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
               <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
@@ -260,24 +239,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* ── ALL-TIME STATS + FIELD PIE ─────────────────────────────
-             Removed flex-1 min-h-0 from the grid — those made the grid
-             grow to fill the (now-removed) viewport-height constraint,
-             which is what stretched the stat cards so tall.
-        ──────────────────────────────────────────────────────────────── */}
+        {/* ── ALL-TIME STATS + FIELD PIE ────────────────────────────── */}
         <div className="grid grid-cols-3 gap-4 items-stretch">
 
           {/* All-time stats */}
           <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col min-w-0">
             <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
             <p className="text-sm text-neutral-400 mb-6">Harvest totals</p>
-            {/* Removed flex-1 here — it was pulling the inner flex to fill
-                the outer card's stretched height, which came from the grid */}
             <div className="flex gap-4">
-              {/* Changed justify-between → gap-3 so label+value stack
-                  naturally at top instead of being pushed apart.
-                  Changed text-lg tracking-widest → text-xs tracking-wider
-                  to prevent label wrapping at high zoom levels. */}
               <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
                 <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Registered Pickers</p>
                 <p className="text-6xl font-black text-neutral-400 leading-none">
@@ -328,16 +297,16 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex flex-1 gap-4 min-h-0 items-center">
-              <div className="shrink-0" style={{ width: 150, height: 150 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={38} outerRadius={65} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
-                      {fieldStats.map((_, idx) => <Cell key={idx} fill={pieColors[idx % pieColors.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+                <div className="shrink-0" style={{ width: 150, height: 150 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={fieldStats} dataKey="total_kg" nameKey="field_name" cx="50%" cy="50%" innerRadius={38} outerRadius={65} paddingAngle={3} isAnimationActive animationBegin={0} animationDuration={800} animationEasing="ease-out">
+                        {fieldStats.map((_, idx) => <Cell key={idx} fill={pieColors[idx % pieColors.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']} contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
                 <div className="flex flex-col gap-2 overflow-y-auto">
                   {fieldStats.map((f, idx) => {
                     const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
@@ -365,113 +334,9 @@ export default function Dashboard() {
       </div>
       {/* ── END ABOVE THE FOLD ───────────────────────────────────────── */}
 
-      {/* ── PICKER HARVEST TABLE ────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b-2 border-neutral-100">
-          <div>
-            <p className="text-xl font-bold text-neutral-900">Picker Harvest</p>
-            <p className="text-sm text-neutral-400">Total harvest by picker — all time</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <input
-                value={pickerSearch}
-                onChange={e => setPickerSearch(e.target.value)}
-                placeholder="Search by name..."
-                className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
-              />
-              {pickerSearch && (
-                <button onClick={() => setPickerSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-            <div className="relative">
-              <input
-                value={originSearch}
-                onChange={e => setOriginSearch(e.target.value)}
-                placeholder="Search by origin..."
-                className="w-44 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white pr-8"
-              />
-              {originSearch && (
-                <button onClick={() => setOriginSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {pickerStatsLoading ? (
-          <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
-        ) : (
-          <>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">ID</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Picker</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-neutral-800 transition-colors" onClick={() => handleSort('total_boxes')}>
-                    <div className="flex items-center gap-1">Boxes <SortIcon col="total_boxes" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-neutral-800 transition-colors" onClick={() => handleSort('total_kg')}>
-                    <div className="flex items-center gap-1">Total kg <SortIcon col="total_kg" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest">Origin</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedPickers.map((p) => (
-                  <tr key={p.picker_id} className="border-b border-neutral-100 hover:bg-primary-50 transition-colors">
-                    <td className="px-6 py-4"><span className="font-mono text-sm text-neutral-400">P-{String(p.picker_id).padStart(3, '0')}</span></td>
-                    <td className="px-6 py-4"><span className="font-semibold text-neutral-800">{p.first_name} {p.last_name}</span></td>
-                    <td className="px-6 py-4"><span className={`font-mono font-bold ${sortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>{p.total_boxes.toLocaleString()}</span></td>
-                    <td className="px-6 py-4"><span className={`font-mono text-sm font-semibold ${sortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-600'}`}>{p.total_kg.toLocaleString()} kg</span></td>
-                    <td className="px-6 py-4"><span className="text-sm text-neutral-500">{p.origin_place ?? '—'}</span></td>
-                  </tr>
-                ))}
-                {filteredPickers.length === 0 && (
-                  <tr><td colSpan={5} className="px-6 py-16 text-center text-neutral-400 text-sm">{pickerSearch ? 'No pickers match your search.' : 'No harvest data yet.'}</td></tr>
-                )}
-              </tbody>
-            </table>
-
-            {pickerPageCount > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t-2 border-neutral-100 bg-neutral-50">
-                <p className="text-sm text-neutral-400">
-                  Showing <span className="font-semibold text-neutral-700">{(pickerPage - 1) * PAGE_SIZE + 1}–{Math.min(pickerPage * PAGE_SIZE, filteredPickers.length)}</span> of <span className="font-semibold text-neutral-700">{filteredPickers.length}</span> pickers
-                </p>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setPickerPage(p => Math.max(1, p - 1))} disabled={pickerPage === 1} className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronLeft size={15} strokeWidth={2.5} /></button>
-                  {Array.from({ length: pickerPageCount }, (_, i) => i + 1)
-                    .filter(p => p === 1 || p === pickerPageCount || Math.abs(p - pickerPage) <= 2)
-                    .reduce<(number | 'gap')[]>((acc, p, i, arr) => {
-                      if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('gap')
-                      acc.push(p)
-                      return acc
-                    }, [])
-                    .map((p, i) => p === 'gap'
-                      ? <span key={`gap-${i}`} className="w-9 text-center text-neutral-400 text-sm">…</span>
-                      : <button key={p} onClick={() => setPickerPage(p)} className={`w-9 h-9 rounded-lg border-2 text-sm font-semibold transition-colors ${pickerPage === p ? 'border-primary-700 bg-primary-700 text-white' : 'border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700'}`}>{p}</button>
-                    )
-                  }
-                  <button onClick={() => setPickerPage(p => Math.min(pickerPageCount, p + 1))} disabled={pickerPage === pickerPageCount} className="p-2 rounded-lg border-2 border-neutral-200 text-neutral-500 hover:border-primary hover:text-primary-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={15} strokeWidth={2.5} /></button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
       {/* ── DAILY HARVEST TABLE ─────────────────────────────────────── */}
       <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white' : 'rounded-2xl'}`}>
 
-        {/* Toolbar
-             Added flex-wrap + gap-x-6 gap-y-4 so controls reflow to the
-             next line at high zoom instead of overflowing or clipping.
-             gap-x-6 preserves the original horizontal spacing; gap-y-4
-             gives breathing room between wrapped rows.
-        */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
           <div className="shrink-0">
             <p className="text-xl font-bold text-neutral-900">Daily Harvest</p>
@@ -550,8 +415,18 @@ export default function Dashboard() {
                     <th className="px-4 py-4 w-10"></th>
                     <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest whitespace-nowrap w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total kg</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Total Boxes</th>
+                    <th
+                      className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
+                      onClick={() => handleDailySort('total_kg')}
+                    >
+                      <div className="flex items-center gap-1">Total kg <DailySortIcon col="total_kg" /></div>
+                    </th>
+                    <th
+                      className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
+                      onClick={() => handleDailySort('total_boxes')}
+                    >
+                      <div className="flex items-center gap-1">Total Boxes <DailySortIcon col="total_boxes" /></div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -591,10 +466,12 @@ export default function Dashboard() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-mono font-bold text-neutral-700 block">{p.total_kg.toLocaleString()} kg</span>
+                          <span className={`font-mono font-bold block ${dailySortBy === 'total_kg' ? 'text-primary-700' : 'text-neutral-700'}`}>
+                            {p.total_kg.toLocaleString()} kg
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-semibold text-neutral-800 block">
+                          <span className={`font-semibold block ${dailySortBy === 'total_boxes' ? 'text-primary-700' : 'text-neutral-800'}`}>
                             {p.total_boxes.toLocaleString()}
                           </span>
                           <span className="text-xs text-neutral-400 block mt-0.5">
