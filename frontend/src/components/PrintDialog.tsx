@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Printer } from 'lucide-react'
-import { jsPDF } from 'jspdf'
 import JsBarcode from 'jsbarcode'
-import { createPrintBatch } from '../api/printBatches'
+import { generatePdf } from '../api/printBatches'
 
 interface PrintItem {
   picker_id:   number
@@ -20,164 +19,106 @@ interface Props {
 const LABEL_WIDTH_MM  = 97
 const LABEL_HEIGHT_MM = 51
 
+// Code128 module count for a 9-char "PPPP-NNNN" string:
+//   start(11) + 9 chars × 11 + checksum(11) + stop(13) = 134 modules
+// Used to auto-fit bar width to the preview canvas.
+const CODE128_MODULES = 134
+
 function padded(n: number, d: number) {
   return String(n).padStart(d, '0')
 }
 
 export default function PrintDialog({ open, onClose, items, onSuccess }: Props) {
-  const [barcodeScale, setBarcodeScale] = useState(2.5)
+  const [barcodeScale, setBarcodeScale] = useState(0.8)
   const [isPrinting, setIsPrinting]     = useState(false)
   const [error, setError]               = useState<string | null>(null)
   const previewRef                      = useRef<HTMLCanvasElement>(null)
 
   const totalStickers = items.reduce((sum, i) => sum + i.quantity, 0)
 
-  // ── Preview — just shows first picker's first code as a sample ────
+  // ── Preview canvas ────────────────────────────────────────────────
+  // Layout matches server-side: barcode → PPPP-NNNN → name
   useEffect(() => {
     if (!open || !previewRef.current || items.length === 0) return
     const canvas = previewRef.current
     const ctx    = canvas.getContext('2d')
     if (!ctx) return
 
-    const DPI = 96
-    const pxW = Math.round(LABEL_WIDTH_MM  / 25.4 * DPI)
-    const pxH = Math.round(LABEL_HEIGHT_MM / 25.4 * DPI)
+    const DPI    = 96
+    const pxW    = Math.round(LABEL_WIDTH_MM  / 25.4 * DPI)
+    const pxH    = Math.round(LABEL_HEIGHT_MM / 25.4 * DPI)
     canvas.width  = pxW
     canvas.height = pxH
 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, pxW, pxH)
 
-    // sample code using picker_id and box 1
-    const sampleCode = `${padded(items[0].picker_id, 4)}-0001`
+    const sampleCode = `1234-1234`
     const name       = items[0].picker_name
 
-    const bc = document.createElement('canvas')
+    const marginPx = Math.round(pxW * 0.03)
+    const codeFs   = Math.round(pxH * 0.16)
+    const nameFs   = Math.round(pxH * 0.13)
+
+    // Auto-fit bar width to fill the label width (same logic as backend)
+    const fullBarW = (pxW - marginPx * 2) / CODE128_MODULES
+    const autoBarW = fullBarW * Math.min(barcodeScale, 1.0)
+
+    // Row 1 — barcode (top), height scales with slider
+    const bcHeight = Math.round(pxH * 0.52)
+    const bc       = document.createElement('canvas')
     JsBarcode(bc, sampleCode, {
-      format: 'CODE128', width: barcodeScale,
-      height: Math.round(pxH * 0.50),
-      displayValue: false, margin: 0,
-      background: '#ffffff', lineColor: '#000000',
+      format:       'CODE128',
+      width:        autoBarW,
+      height:       bcHeight,
+      displayValue: false,
+      margin:       0,
+      background:   '#ffffff',
+      lineColor:    '#000000',
     })
+    ctx.drawImage(bc, Math.round((pxW - bc.width) / 2), marginPx)
 
-    const bx  = Math.round((pxW - bc.width) / 2)
-    const by  = Math.round(pxH * 0.06)
-    ctx.drawImage(bc, bx, by)
+    const bcBottom = marginPx + bcHeight
+    const gapPx    = Math.round(pxH * 0.04)
 
-    const bot    = by + bc.height
-    const codeFs = Math.round(pxH * 0.12)
-    const nameFs = Math.round(pxH * 0.10)
-
+    // Row 2 — code text
     ctx.fillStyle = '#000000'
-    ctx.font      = `bold ${codeFs}px monospace`
+    ctx.font      = `bold ${codeFs}px "Courier New", monospace`
     ctx.textAlign = 'center'
-    ctx.fillText(sampleCode, pxW / 2, bot + codeFs + 4)
+    ctx.fillText(sampleCode, pxW / 2, bcBottom + gapPx + codeFs)
 
+    // Row 3 — name
     ctx.fillStyle = '#444444'
-    ctx.font      = `${nameFs}px sans-serif`
-    ctx.fillText(name, pxW / 2, bot + codeFs + nameFs + 10)
+    ctx.font      = `${nameFs}px Arial, sans-serif`
+    ctx.fillText(name, pxW / 2, bcBottom + gapPx + codeFs + gapPx + nameFs)
 
   }, [open, barcodeScale, items])
 
-    useEffect(() => {
-      if (!open) return
-      const handler = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose()
-      }
-      document.addEventListener('keydown', handler)
-      return () => document.removeEventListener('keydown', handler)
-    }, [open, onClose])
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open, onClose])
 
-  // ── Print — calls backend then generates PDF ───────────────────────
+  // ── Print ─────────────────────────────────────────────────────────
   const handlePrint = async () => {
     setIsPrinting(true)
     setError(null)
 
     try {
-      // 1. Create batches in backend
-      const batches = await createPrintBatch({
-        items: items.map(i => ({ picker_id: i.picker_id, quantity: i.quantity }))
+      const blob = await generatePdf({
+        items: items.map(i => ({ picker_id: i.picker_id, quantity: i.quantity })),
+        scale: barcodeScale,
       })
 
-      // 2. Build sticker list from returned batches
-      const stickerItems: { code: string; name: string }[] = []
-      for (const batch of batches) {
-        const item = items.find(i => i.picker_id === batch.picker_id)
-        const name = item?.picker_name ?? `P-${padded(batch.picker_id, 4)}`
-        for (let n = batch.box_number_from; n <= batch.box_number_to; n++) {
-          stickerItems.push({
-            code: `${padded(batch.picker_id, 4)}-${padded(n, 4)}`,
-            name,
-          })
-        }
-      }
-
-      // 3. Generate PDF
-      const PX  = 3.78 * 3
-      const lW  = Math.round(LABEL_WIDTH_MM  * PX)
-      const lH  = Math.round(LABEL_HEIGHT_MM * PX)
-
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit:        'mm',
-        format:      [LABEL_WIDTH_MM, LABEL_HEIGHT_MM],
-      })
-
-      stickerItems.forEach(({ code, name }, idx) => {
-        if (idx > 0) doc.addPage([LABEL_WIDTH_MM, LABEL_HEIGHT_MM], 'landscape')
-
-        const lc  = document.createElement('canvas')
-        lc.width  = lW
-        lc.height = lH
-        const ctx = lc.getContext('2d')!
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, lW, lH)
-
-        const bc = document.createElement('canvas')
-        JsBarcode(bc, code, {
-          format: 'CODE128', width: barcodeScale * 3,
-          height: Math.round(lH * 0.50),
-          displayValue: false, margin: 0,
-          background: '#ffffff', lineColor: '#000000',
-        })
-        ctx.drawImage(bc, (lW - bc.width) / 2, Math.round(lH * 0.06))
-
-        const bot    = Math.round(lH * 0.06) + bc.height
-        const codeFs = Math.round(lH * 0.12)
-        const nameFs = Math.round(lH * 0.10)
-
-        ctx.font      = `bold ${codeFs}px "Courier New", monospace`
-        ctx.fillStyle = '#000000'
-        ctx.textAlign = 'center'
-        ctx.fillText(code, lW / 2, bot + codeFs + 4)
-
-        ctx.font      = `${nameFs}px Arial, sans-serif`
-        ctx.fillStyle = '#444444'
-        ctx.fillText(name, lW / 2, bot + codeFs + nameFs + 10)
-
-        doc.addImage(lc.toDataURL('image/png'), 'PNG', 0, 0, LABEL_WIDTH_MM, LABEL_HEIGHT_MM)
-      })
-
-      // 4. Set filename
-      const date     = new Date().toISOString().split('T')[0]
-      const filename = `Printed-${date}, pickers-${batches.length}, stickers-${totalStickers}`
-
-      doc.setProperties({
-        title:   filename,
-        subject: 'Mosavali Harvest Stickers',
-        author:  'Seeder Blueberry',
-      })
-
-      // 5. Open in new tab only — no auto download
-      const blob = doc.output('blob')
-      const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+      const url = URL.createObjectURL(blob)
       window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
 
       onSuccess()
-
-    } catch (err) {
-      setError('Failed to create print batch. Please try again.')
+    } catch {
+      setError('Failed to generate stickers. Please try again.')
     } finally {
       setIsPrinting(false)
     }
@@ -225,7 +166,7 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Barcode Scale</label>
             <div className="mt-2 flex items-center gap-4">
               <input
-                type="range" min={1} max={4} step={0.5}
+                type="range" min={0.5} max={1.0} step={0.05}
                 value={barcodeScale}
                 onChange={e => setBarcodeScale(Number(e.target.value))}
                 className="flex-1 accent-primary"
@@ -248,7 +189,7 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
             className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold text-sm hover:bg-primary transition-colors flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-primary-900/20"
           >
             <Printer size={17} strokeWidth={2.5} />
-            {isPrinting ? 'Creating batches...' : `Open & Print ${totalStickers} Stickers`}
+            {isPrinting ? 'Generating PDF...' : `Open & Print ${totalStickers} Stickers`}
           </button>
 
         </div>

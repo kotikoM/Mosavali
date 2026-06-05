@@ -26,3 +26,8 @@ export const createPrintBatch = (data: PrintQueueRequest) =>
 
 export const getPrintBatches = () =>
   api.get<PrintBatch[]>('/print-batches/').then(r => r.data)
+
+export const generatePdf = (data: { items: PrintQueueItem[]; scale: number }): Promise<Blob> =>
+  api
+    .post('/print-batches/generate-pdf', data, { responseType: 'blob' })
+    .then(r => r.data)
