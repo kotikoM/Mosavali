@@ -24,7 +24,6 @@ export interface MasterExportBox {
 }
 
 export interface MasterExportPrintBatch {
-  batch_id:        number
   picker_id:       number
   picker_name:     string
   national_id:     string
@@ -71,6 +70,7 @@ const G = {
   entryOdd:     'FFF7FAF6',
   entryEven:    'FFFFFFFF',
   entryBorder:  'FFEEEEEE',
+  entryHeader:  'FFF0F0F0',
   totalBg:      'FF3D6439',
   black:        'FF000000',
   white:        'FFFFFFFF',
@@ -117,7 +117,6 @@ function writeHeader(
 function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   const ws = wb.addWorksheet('Daily Harvest')
 
-  // Derive all unique box types and net weights from day data
   const allBoxTypes = Array.from(
     new Set(data.flatMap(p => Object.keys(p.total_box_types)))
   ).sort()
@@ -131,16 +130,14 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     }
   }
 
-  // Derive all unique dates from data
   const dailyColumns = Array.from(
     new Set(data.flatMap(p => Object.keys(p.days)))
   ).sort()
 
-  // Column layout: 1=# 2=Name 3=NatID 4=Phone 5=Origin 6=IBAN 7=TotalKg 8=Salary 9=TotalBoxes 10+=BoxTypes ... days
   const KG_COL      = 7
   const SALARY_COL  = 8
   const BOXES_COL   = 9
-  const PRICE_ROW   = 5   // offset due to title/info/spacer/pricerow rows
+  const PRICE_ROW   = 5
   const HEADER_ROW  = 7
   const DATA_START  = 8
 
@@ -154,10 +151,8 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     TOTAL_COLS,
   )
 
-  // Row 4: spacer
   ws.getRow(4).height = 4
 
-  // Row 5: Price input
   ws.mergeCells('A5:B5')
   const priceLabel     = ws.getCell('A5')
   priceLabel.value     = 'Price per kg'
@@ -184,10 +179,8 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   priceHint.alignment = { horizontal: 'left', vertical: 'middle' }
   ws.getRow(5).height = 22
 
-  // Row 6: spacer
   ws.getRow(6).height = 4
 
-  // Row 7: Column headers
   const headerDefs: { label: string; width: number }[] = [
     { label: '#',                                                              width: 4  },
     { label: 'Name',                                                           width: 24 },
@@ -227,7 +220,6 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     ws.getColumn(n).width = 9
   })
 
-  // Data rows
   data.forEach((p, idx) => {
     const rowN  = DATA_START + idx
     const isOdd = idx % 2 === 1
@@ -285,7 +277,6 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     })
   })
 
-  // Totals row
   const totN  = DATA_START + data.length
   ws.getRow(totN).height = 20
 
@@ -302,9 +293,9 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   tc(1, 'TOTAL')
   tc(2, `${data.length} pickers`)
   for (let i = 3; i <= 6; i++) tc(i, null)
-  tc(KG_COL,    null, { numFmt: '#,##0.0',       formula: `=SUM(${col(KG_COL)}${DATA_START}:${col(KG_COL)}${totN - 1})` })
+  tc(KG_COL,    null, { numFmt: '#,##0.0',        formula: `=SUM(${col(KG_COL)}${DATA_START}:${col(KG_COL)}${totN - 1})` })
   tc(SALARY_COL,null, { numFmt: '#,##0.00 "GEL"', formula: `=SUM(${col(SALARY_COL)}${DATA_START}:${col(SALARY_COL)}${totN - 1})`, highlight: true })
-  tc(BOXES_COL, null, { numFmt: '#,##0',          formula: `=SUM(${col(BOXES_COL)}${DATA_START}:${col(BOXES_COL)}${totN - 1})` })
+  tc(BOXES_COL, null, { numFmt: '#,##0',           formula: `=SUM(${col(BOXES_COL)}${DATA_START}:${col(BOXES_COL)}${totN - 1})` })
   allBoxTypes.forEach((_, bti) => {
     const c = 10 + bti
     tc(c, null, { numFmt: '#,##0', formula: `=SUM(${col(c)}${DATA_START}:${col(c)}${totN - 1})` })
@@ -318,7 +309,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
 // ── Sheet 2: Sticker Detail ───────────────────────────────────────────
 
 function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportRow[]) {
-  const ws = wb.addWorksheet('Sticker Detail')
+  const ws = wb.addWorksheet('All Sticker')
 
   const allBoxTypes = Array.from(
     new Set(data.flatMap(p => p.box_type_summary.map(b => b.box_name)))
@@ -340,7 +331,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
 
   writeHeader(
     ws,
-    'Sticker Detail — All Pickers',
+    'All Stickers',
     `Exported ${new Date().toLocaleString()}  ·  ${data.length} pickers  ·  ${totalBoxesAll.toLocaleString()} boxes  ·  ${Math.round(totalKgAll * 10) / 10} kg total`,
     TOTAL_COLS,
   )
@@ -382,12 +373,27 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     bottom: { style: 'thin', color: { argb: G.entryBorder } },
     right:  { style: 'thin', color: { argb: G.entryBorder } },
   }
+  const entryHeaderBorder: Partial<ExcelJS.Borders> = {
+    bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+    right:  { style: 'thin', color: { argb: 'FFDDDDDD' } },
+  }
+
+  // Entry column label definitions — col index → label
+  // Cols 1–5 map to: arrow, Barcode, Box Type, Field, Harvest Date
+  // Cols beyond 5 (box type columns, total kg) intentionally left blank
+  const ENTRY_COL_LABELS: Record<number, string> = {
+    1: '',
+    2: 'Barcode',
+    3: 'Box Type',
+    4: 'Field',
+    5: 'Harvest Date',
+  }
 
   data.forEach((picker, pickerIdx) => {
     const boxCounts: Record<string, number> = {}
     for (const b of picker.box_type_summary) boxCounts[b.box_name] = b.count
 
-    // Summary row
+    // ── Summary row ───────────────────────────────────────────────────
     const sr   = ws.getRow(rowN)
     sr.height  = 21
 
@@ -414,7 +420,28 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
 
     rowN++
 
-    // Entry rows
+    // ── Entry column header row ───────────────────────────────────────
+    if (picker.entries.length > 0) {
+      const ehr   = ws.getRow(rowN)
+      ehr.height  = 13
+
+      for (let c = 1; c <= TOTAL_COLS; c++) {
+        const cell      = ehr.getCell(c)
+        cell.value      = ENTRY_COL_LABELS[c] ?? ''
+        cell.fill       = fill(G.entryHeader)
+        cell.font       = { name: FONT, size: 8, bold: true, color: { argb: 'FF9CA3AF' } }
+        cell.alignment  = {
+          horizontal: c === 5 ? 'center' : 'left',
+          vertical:   'middle',
+          indent:     c >= 2 && c <= 4 ? 2 : 0,
+        }
+        cell.border     = entryHeaderBorder
+      }
+
+      rowN++
+    }
+
+    // ── Entry rows ────────────────────────────────────────────────────
     picker.entries.forEach((entry, ei) => {
       const er   = ws.getRow(rowN)
       er.height  = 15
@@ -435,17 +462,17 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
         c.border    = entryBorderStyle
       }
 
-      ec(1, '↳',                                          { align: 'center' })
-      ec(2, entry.barcode,                                { mono: true, bold: true })
+      ec(1, '↳',                                           { align: 'center' })
+      ec(2, entry.barcode,                                 { mono: true, bold: true })
       ec(3, `${entry.box_name} (${entry.net_weight_kg}kg)`)
       ec(4, entry.field_name)
-      ec(5, entry.harvest_date,                           { mono: true, align: 'center' })
+      ec(5, entry.harvest_date,                            { mono: true, align: 'center' })
 
       rowN++
     })
   })
 
-  // Grand total row
+  // ── Grand total row ───────────────────────────────────────────────
   const gtr   = ws.getRow(rowN)
   gtr.height  = 22
 
@@ -489,7 +516,7 @@ function buildSimpleSheet(
   subtitle:    string,
   columns:     ColDef[],
   rows:        Record<string, any>[],
-  totalKeys?:  string[],   // columns to sum in the total row
+  totalKeys?:  string[],
 ) {
   const ws         = wb.addWorksheet(sheetName)
   const TOTAL_COLS = columns.length
@@ -498,7 +525,6 @@ function buildSimpleSheet(
 
   writeHeader(ws, title, subtitle, TOTAL_COLS)
 
-  // Header row
   const hRow   = ws.getRow(HEADER_ROW)
   hRow.height  = 22
   columns.forEach(({ label, width }, i) => {
@@ -511,7 +537,6 @@ function buildSimpleSheet(
     ws.getColumn(i + 1).width = width
   })
 
-  // Data rows
   rows.forEach((row, idx) => {
     const rowN  = DATA_START + idx
     const isOdd = idx % 2 === 1
@@ -530,7 +555,6 @@ function buildSimpleSheet(
     })
   })
 
-  // Totals row
   if (totalKeys && totalKeys.length > 0) {
     const totN  = DATA_START + rows.length
     const tr    = ws.getRow(totN)
@@ -578,13 +602,13 @@ function buildBoxTypesSheet(wb: ExcelJS.Workbook, data: MasterExportBox[]) {
     'Box Types',
     `Exported ${new Date().toLocaleString()}  ·  ${data.length} box types`,
     [
-      { label: '#',             key: '_idx',           width: 5,  align: 'center' },
-      { label: 'Name',          key: 'name',           width: 20 },
-      { label: 'Net Weight kg', key: 'net_weight_kg',  width: 15, align: 'right', numFmt: '#,##0.000', bold: true, color: G.green },
-      { label: 'Empty kg',      key: 'empty_weight_kg',width: 12, align: 'right', numFmt: '#,##0.000' },
-      { label: 'Full kg',       key: 'full_weight_kg', width: 12, align: 'right', numFmt: '#,##0.000' },
-      { label: 'Description',   key: 'description',    width: 30 },
-      { label: 'Total Scanned', key: 'total_scanned',  width: 14, align: 'right', numFmt: '#,##0' },
+      { label: '#',             key: '_idx',            width: 5,  align: 'center' },
+      { label: 'Name',          key: 'name',            width: 20 },
+      { label: 'Net Weight kg', key: 'net_weight_kg',   width: 15, align: 'right', numFmt: '#,##0.000', bold: true, color: G.green },
+      { label: 'Empty kg',      key: 'empty_weight_kg', width: 12, align: 'right', numFmt: '#,##0.000' },
+      { label: 'Full kg',       key: 'full_weight_kg',  width: 12, align: 'right', numFmt: '#,##0.000' },
+      { label: 'Description',   key: 'description',     width: 30 },
+      { label: 'Total Scanned', key: 'total_scanned',   width: 14, align: 'right', numFmt: '#,##0' },
     ],
     data.map((r, i) => ({ ...r, _idx: i + 1, description: r.description ?? '—' })),
     ['total_scanned'],
@@ -606,14 +630,13 @@ function buildPrintBatchesSheet(wb: ExcelJS.Workbook, data: MasterExportPrintBat
     'Print Batches',
     `Exported ${new Date().toLocaleString()}  ·  ${data.length} batches  ·  ${data.reduce((s, r) => s + r.quantity, 0).toLocaleString()} stickers total`,
     [
-      { label: '#',          key: '_idx',           width: 5,  align: 'center' },
-      { label: 'Picker',     key: 'picker_name',    width: 22 },
-      { label: 'National ID',key: 'national_id',    width: 15, mono: true, align: 'center' },
-      { label: 'Batch ID',   key: 'batch_id',       width: 10, align: 'center' },
-      { label: 'Box From',   key: 'box_number_from',width: 11, align: 'right', numFmt: '#,##0' },
-      { label: 'Box To',     key: 'box_number_to',  width: 11, align: 'right', numFmt: '#,##0' },
-      { label: 'Quantity',   key: 'quantity',       width: 11, align: 'right', numFmt: '#,##0', bold: true },
-      { label: 'Printed At', key: 'printed_at',     width: 22, mono: true, align: 'center' },
+      { label: '#',           key: '_idx',            width: 5,  align: 'center' },
+      { label: 'Picker',      key: 'picker_name',     width: 22 },
+      { label: 'National ID', key: 'national_id',     width: 15, mono: true, align: 'center' },
+      { label: 'Box From',    key: 'box_number_from', width: 11, align: 'right', numFmt: '#,##0' },
+      { label: 'Box To',      key: 'box_number_to',   width: 11, align: 'right', numFmt: '#,##0' },
+      { label: 'Quantity',    key: 'quantity',        width: 11, align: 'right', numFmt: '#,##0', bold: true },
+      { label: 'Printed At',  key: 'printed_at',      width: 22, mono: true, align: 'center' },
     ],
     formatted,
     ['quantity'],
@@ -627,15 +650,15 @@ export async function exportMasterToExcel(data: MasterExportData) {
   wb.creator  = 'Mosavali'
   wb.created  = new Date()
 
-  buildDailyHarvestSheet(wb,    data.picker_box_stats)
-  buildStickerDetailSheet(wb,   data.picker_detail)
-  buildFieldsSheet(wb,          data.fields)
-  buildBoxTypesSheet(wb,        data.boxes)
-  buildPrintBatchesSheet(wb,    data.print_batches)
+  buildDailyHarvestSheet(wb,  data.picker_box_stats)
+  buildStickerDetailSheet(wb, data.picker_detail)
+  buildFieldsSheet(wb,        data.fields)
+  buildBoxTypesSheet(wb,      data.boxes)
+  buildPrintBatchesSheet(wb,  data.print_batches)
 
   const buf = await wb.xlsx.writeBuffer()
   saveAs(
     new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `mosavali_master_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    `export_all_${new Date().toISOString().slice(0, 10)}.xlsx`,
   )
 }
