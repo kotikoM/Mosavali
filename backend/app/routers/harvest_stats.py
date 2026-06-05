@@ -50,10 +50,13 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
         select(func.sum(Box.net_weight_kg))
         .join(HarvestEntry, HarvestEntry.box_type_id == Box.box_id)
     )
+    first_date_result = await db.execute(select(func.min(HarvestEntry.harvest_date)))
+    first_date = first_date_result.scalar()
     return {
         "total_pickers": picker_result.scalar() or 0,
         "total_scanned": scan_result.scalar() or 0,
         "total_kg":      round(float(kg_result.scalar() or 0), 3),
+        "first_harvest_date": str(first_date) if first_date else None,
     }
 
 
