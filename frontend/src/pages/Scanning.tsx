@@ -140,11 +140,6 @@ export default function Scanning() {
     }
   }
 
-  const { data: todayStats } = useQuery({
-    queryKey: ['harvest-stats-today'],
-    queryFn:  () => getDailyStats(today, today),
-  })
-
   const { data: entriesData, isLoading: entriesLoading } = useQuery({
     queryKey: ['harvest', entriesPage, debouncedSearch],
     queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedSearch),
@@ -156,7 +151,6 @@ export default function Scanning() {
   })
 
   // ── derived values ───────────────────────────────────────────────
-  const todayCount   = todayStats?.total ?? 0
   const entries      = entriesData?.items ?? []
   const entriesTotal = entriesData?.total ?? 0
   const entriesPages = entriesData?.pages ?? 1
@@ -308,7 +302,7 @@ export default function Scanning() {
 
           <button
             onClick={() => setSessionActive(true)}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-primary-700 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
+            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-white/20 hover:border-white/50 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
           >
             <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
               <ScanBarcode size={28} className="text-white" strokeWidth={2.5} />
@@ -335,17 +329,6 @@ export default function Scanning() {
             </div>
             <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
           </button>
-
-          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary-50 flex items-center justify-center shrink-0">
-              <Box size={26} className="text-primary-700" strokeWidth={2} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Scanned Today</p>
-              <p className="text-3xl font-black text-neutral-900 mt-0.5">{todayCount.toLocaleString()}</p>
-              <p className="text-xs text-neutral-400 mt-0.5">{today}</p>
-            </div>
-          </div>
 
         </div>
 
