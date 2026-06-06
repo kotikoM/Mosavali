@@ -115,6 +115,7 @@ export interface PickerDetailExportEntry {
   net_weight_kg: number
   field_name:    string
   harvest_date:  string
+  scan_date:     string
 }
 
 export interface PickerDetailBoxSummary {

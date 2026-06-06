@@ -370,7 +370,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     { label: 'National ID', width: 15 },
     { label: 'Origin',      width: 14 },
     { label: 'Phone',       width: 14 },
-    { label: 'Total Boxes', width: 13 },
+    { label: 'Total Boxes', width: 21 },
     ...allBoxTypes.map(bt => ({ label: `${bt} (${boxNetWeights[bt] ?? '?'}kg)`, width: 15 })),
     { label: 'Total KG',    width: 12 },
   ]
@@ -409,6 +409,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     3: 'Box Type',
     4: 'Field',
     5: 'Harvest Date',
+    6: 'Scan Date',
   }
 
   data.forEach((picker, pickerIdx) => {
@@ -484,11 +485,12 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
         c.border    = entryBorderStyle
       }
 
-      ec(1, '↳',                                           { align: 'center' })
-      ec(2, entry.barcode,                                 { mono: true, bold: true })
+      ec(1, '↳',                                                         { align: 'center' })
+      ec(2, entry.barcode,                                               { mono: true, bold: true })
       ec(3, `${entry.box_name} (${entry.net_weight_kg}kg)`)
       ec(4, entry.field_name)
-      ec(5, entry.harvest_date,                            { mono: true, align: 'center' })
+      ec(5, entry.harvest_date,                                          { mono: true, align: 'center' })
+      ec(6, fmtTbilisi(entry.scan_date),                                 { mono: true, align: 'center' })
 
       rowN++
     })

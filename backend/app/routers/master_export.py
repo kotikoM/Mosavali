@@ -121,6 +121,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
             "net_weight_kg": float(box.net_weight_kg),
             "field_name":    field.field_name,
             "harvest_date":  str(entry.harvest_date),
+            "scan_date":     entry.scan_date.isoformat(),
         })
 
     picker_detail = []
