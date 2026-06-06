@@ -52,6 +52,31 @@ function col(n: number): string {
 const fill = (argb: string): ExcelJS.Fill =>
   ({ type: 'pattern', pattern: 'solid', fgColor: { argb } })
 
+// ── Tbilisi datetime formatter (UTC+4) ───────────────────────────────
+
+function fmtTbilisi(date: Date | string): string {
+  let d: Date
+  if (typeof date === 'string') {
+    // If the string has no timezone indicator, the backend sent a bare UTC
+    // datetime — append Z so the Date constructor treats it as UTC, not local.
+    const utc = /Z|[+-]\d{2}:?\d{2}$/.test(date) ? date : date + 'Z'
+    d = new Date(utc)
+  } else {
+    d = date
+  }
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Tbilisi',
+    year:     'numeric',
+    month:    '2-digit',
+    day:      '2-digit',
+    hour:     '2-digit',
+    minute:   '2-digit',
+    second:   '2-digit',
+    hour12:   false,
+  }).format(d).replace('T', '  ')
+}
+
+
 // ── Shared palette ────────────────────────────────────────────────────
 
 const G = {
@@ -147,7 +172,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   writeHeader(
     ws,
     'Daily Harvest — All Time',
-    `Exported ${new Date().toLocaleString()}  ·  ${data.length} pickers`,
+    `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} pickers`,
     TOTAL_COLS,
   )
 
@@ -332,7 +357,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
   writeHeader(
     ws,
     'All Stickers',
-    `Exported ${new Date().toLocaleString()}  ·  ${data.length} pickers  ·  ${totalBoxesAll.toLocaleString()} boxes  ·  ${Math.round(totalKgAll * 10) / 10} kg total`,
+    `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} pickers  ·  ${totalBoxesAll.toLocaleString()} boxes  ·  ${Math.round(totalKgAll * 10) / 10} kg total`,
     TOTAL_COLS,
   )
 
@@ -378,9 +403,6 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     right:  { style: 'thin', color: { argb: 'FFDDDDDD' } },
   }
 
-  // Entry column label definitions — col index → label
-  // Cols 1–5 map to: arrow, Barcode, Box Type, Field, Harvest Date
-  // Cols beyond 5 (box type columns, total kg) intentionally left blank
   const ENTRY_COL_LABELS: Record<number, string> = {
     1: '',
     2: 'Barcode',
@@ -580,7 +602,7 @@ function buildFieldsSheet(wb: ExcelJS.Workbook, data: MasterExportField[]) {
     wb,
     'Fields',
     'Fields',
-    `Exported ${new Date().toLocaleString()}  ·  ${data.length} fields`,
+    `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} fields`,
     [
       { label: '#',           key: '_idx',        width: 5,  align: 'center' },
       { label: 'Field Name',  key: 'field_name',  width: 24 },
@@ -600,7 +622,7 @@ function buildBoxTypesSheet(wb: ExcelJS.Workbook, data: MasterExportBox[]) {
     wb,
     'Box Types',
     'Box Types',
-    `Exported ${new Date().toLocaleString()}  ·  ${data.length} box types`,
+    `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} box types`,
     [
       { label: '#',             key: '_idx',            width: 5,  align: 'center' },
       { label: 'Name',          key: 'name',            width: 20 },
@@ -621,14 +643,14 @@ function buildPrintBatchesSheet(wb: ExcelJS.Workbook, data: MasterExportPrintBat
   const formatted = data.map((r, i) => ({
     ...r,
     _idx:       i + 1,
-    printed_at: r.printed_at.replace('T', '  ').slice(0, 19),
+    printed_at: fmtTbilisi(r.printed_at),
   }))
 
   buildSimpleSheet(
     wb,
     'Print Batches',
     'Print Batches',
-    `Exported ${new Date().toLocaleString()}  ·  ${data.length} batches  ·  ${data.reduce((s, r) => s + r.quantity, 0).toLocaleString()} stickers total`,
+    `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} batches  ·  ${data.reduce((s, r) => s + r.quantity, 0).toLocaleString()} stickers total`,
     [
       { label: '#',           key: '_idx',            width: 5,  align: 'center' },
       { label: 'Picker',      key: 'picker_name',     width: 22 },
