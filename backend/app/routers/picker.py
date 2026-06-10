@@ -11,7 +11,7 @@ router = APIRouter(prefix="/pickers", tags=["pickers"])
 
 @router.get("/", response_model=list[PickerResponse])
 async def get_all_pickers(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Picker))
+    result = await db.execute(select(Picker).order_by(Picker.picker_id))
     return result.scalars().all()
 
 
