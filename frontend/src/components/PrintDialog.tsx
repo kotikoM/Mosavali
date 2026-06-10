@@ -193,7 +193,7 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
             className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold text-sm hover:bg-primary transition-colors flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-primary-900/20"
           >
             <Printer size={17} strokeWidth={2.5} />
-            {isPrinting ? 'Generating PDF...' : `Open & Print ${totalStickers} Stickers`}
+            {isPrinting ? 'Generating PDF...' : `Generate PDF`}
           </button>
 
         </div>

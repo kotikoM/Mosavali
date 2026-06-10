@@ -301,7 +301,7 @@ export default function Printing() {
                     className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
                   >
                     <Printer size={17} strokeWidth={2.5} />
-                    Print {totalStickers > 0 && `· ${totalStickers} stickers`}
+                    Adjust {totalStickers > 0 && `· ${totalStickers} stickers`}
                   </button>
                 </div>
               </>
