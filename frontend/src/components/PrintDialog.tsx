@@ -103,26 +103,30 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
 
   // ── Print ─────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    setIsPrinting(true)
-    setError(null)
+    setIsPrinting(true);
+    setError(null);
+
+    // Open the tab immediately while still in user gesture context
+    const win = window.open('', '_blank');
 
     try {
       const blob = await generatePdf({
         items: items.map(i => ({ picker_id: i.picker_id, quantity: i.quantity })),
         scale: barcodeScale,
-      })
+      });
 
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      const url = URL.createObjectURL(blob);
+      win.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 5_000);
 
-      onSuccess()
+      onSuccess();
     } catch {
-      setError('Failed to generate stickers. Please try again.')
+      win.close();
+      setError('Failed to generate stickers. Please try again.');
     } finally {
-      setIsPrinting(false)
+      setIsPrinting(false);
     }
-  }
+  };
 
   if (!open) return null
 
