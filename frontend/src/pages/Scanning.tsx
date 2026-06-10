@@ -660,13 +660,14 @@ export default function Scanning() {
         </div>
 
         {/* Right */}
-        <div className="w-80 shrink-0 flex flex-col border-l border-neutral-200 bg-white shadow-[-4px_0_12px_rgba(0,0,0,0.04)]">
-          <div className="bg-primary-700 p-10 flex flex-col items-center justify-center">
+        <div className="w-80 shrink-0 flex flex-col py-6 pr-6">
+        <div className="flex-1 bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
+          <div className="bg-primary-700 py-8 flex flex-col items-center justify-center shrink-0">
             <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
             <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
           </div>
 
-          <div className="px-5 py-3 border-b border-neutral-100">
+          <div className="px-5 py-3 border-b border-neutral-100 shrink-0">
             <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
           </div>
 
@@ -694,6 +695,7 @@ export default function Scanning() {
                 ))}
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
