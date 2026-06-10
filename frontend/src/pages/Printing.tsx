@@ -216,9 +216,10 @@ export default function Printing() {
         </div>
 
         {/* Right — config + queue */}
-        <div className="w-80 shrink-0 flex flex-col gap-4">
+        <div className="w-80 shrink-0 flex flex-col gap-4 sticky top-6 max-h-[calc(100vh-7rem)]">
 
-          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col gap-4">
+          {/* Add to Queue card */}
+          <div className="shrink-0 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col gap-4">
             <p className="text-sm font-black text-neutral-500 uppercase tracking-widest">Add to Queue</p>
 
             <div>
@@ -260,9 +261,9 @@ export default function Printing() {
             </button>
           </div>
 
-          {/* Queue */}
-          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b-2 border-neutral-100">
+          {/* Queue — fills remaining space, list scrolls, button stays pinned */}
+          <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b-2 border-neutral-100 shrink-0">
               <p className="text-sm font-black text-neutral-500 uppercase tracking-widest">Print Queue</p>
               {queue.length > 0 && (
                 <span className="text-xs font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-full border border-primary-200">
@@ -278,7 +279,8 @@ export default function Printing() {
               </div>
             ) : (
               <>
-                <div className="flex flex-col max-h-72 overflow-y-auto">
+                {/* Scrollable list */}
+                <div className="flex flex-col overflow-y-auto flex-1 min-h-0">
                   {queue.map(item => (
                     <div key={item.id} className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                       <div className="flex flex-col gap-0.5">
@@ -292,13 +294,14 @@ export default function Printing() {
                   ))}
                 </div>
 
-                <div className="px-5 py-4 bg-neutral-50 flex flex-col gap-3 border-t-2 border-neutral-100">
+                {/* Print button — always visible */}
+                <div className="px-5 py-4 bg-neutral-50 flex flex-col gap-3 border-t-2 border-neutral-100 shrink-0">
                   <button
                     onClick={() => setPrintDialogOpen(true)}
                     className="w-full py-4 rounded-xl bg-primary-700 text-white font-bold hover:bg-primary transition-colors flex items-center justify-center gap-2 shadow-lg shadow-primary-900/20"
                   >
                     <Printer size={17} strokeWidth={2.5} />
-                    Print
+                    Print {totalStickers > 0 && `· ${totalStickers} stickers`}
                   </button>
                 </div>
               </>
