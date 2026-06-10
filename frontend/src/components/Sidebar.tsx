@@ -7,7 +7,7 @@ import { exportMasterToExcel } from '../utils/exportMaster'
 const links = [
   { to: '/',         label: 'Dashboard', icon: LayoutDashboard },
   { to: '/pickers',  label: 'Picker',    icon: Users },
-  { to: '/printing', label: 'Sticker',   icon: Printer },
+  { to: '/printing', label: 'Print',   icon: Printer },
   { to: '/scanning', label: 'Scan',      icon: ScanBarcode },
 ]
 
