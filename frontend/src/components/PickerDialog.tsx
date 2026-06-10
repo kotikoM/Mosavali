@@ -120,24 +120,24 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
           {/* Row 1: First + Last */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">First Name</label>
-              <input
-                className={inp(errors.first_name)}
-                placeholder="e.g. Boris"
-                value={form.first_name}
-                onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
-              />
-              {errors.first_name && <p className="text-xs text-red-500 mt-1">{errors.first_name}</p>}
-            </div>
-            <div>
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Last Name</label>
               <input
                 className={inp(errors.last_name)}
-                placeholder="e.g. Machavariani"
+                placeholder="e.g. Dolidze"
                 value={form.last_name}
                 onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
               />
               {errors.last_name && <p className="text-xs text-red-500 mt-1">{errors.last_name}</p>}
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">First Name</label>
+              <input
+                className={inp(errors.first_name)}
+                placeholder="e.g. Ana"
+                value={form.first_name}
+                onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
+              />
+              {errors.first_name && <p className="text-xs text-red-500 mt-1">{errors.first_name}</p>}
             </div>
           </div>
 
@@ -174,7 +174,9 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
 
           {/* Row 3: Origin Place */}
           <div>
-            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Origin Place</label>
+            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+                Origin Place <span className="text-neutral-300 normal-case font-normal">(optional)</span>
+            </label>
             <input
               className={inp()}
               placeholder="e.g. Tbilisi"
@@ -185,7 +187,9 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
 
           {/* Row 4: Bank Info */}
           <div>
-            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Bank Information</label>
+            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+                Bank Information <span className="text-neutral-300 normal-case font-normal">(optional)</span>
+            </label>
             <input
               className={inp()}
               placeholder="Branch / Account Number / Key / IBAN"
@@ -196,7 +200,9 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
 
           {/* Row 5: Note */}
           <div>
-            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Note</label>
+            <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+                Note <span className="text-neutral-300 normal-case font-normal">(optional)</span>
+            </label>
             <textarea
               className={`${inp()} resize-none`}
               placeholder="Contract specifics or performance history notes..."

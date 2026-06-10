@@ -418,7 +418,7 @@ export default function Scanning() {
                 <input
                   value={pickerIdInput}
                   onChange={e => setPickerIdInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0040"
+                  placeholder="0007"
                   className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
                 />
                 {pickerIdInput && (
@@ -437,7 +437,7 @@ export default function Scanning() {
                 <input
                   value={boxNumInput}
                   onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0001"
+                  placeholder="0013"
                   className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
                 />
                 {boxNumInput && (
@@ -452,7 +452,7 @@ export default function Scanning() {
           <div className="w-px h-12 bg-neutral-200 shrink-0" />
 
           <div className="flex flex-col gap-0.5">
-            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export All</label>
+            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export</label>
             <button
               onClick={handleExportDetail}
               disabled={exportingDetail || entriesTotal === 0}
@@ -614,7 +614,7 @@ export default function Scanning() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="PPPP-BBBB"
+                placeholder="XXXX-XXXX"
                 maxLength={9}
                 className="w-full h-full min-h-32 px-8 bg-transparent text-7xl font-mono tracking-[0.25em] outline-none text-center placeholder:text-neutral-200 text-neutral-800"
                 autoComplete="off"
@@ -638,10 +638,6 @@ export default function Scanning() {
               ADD TO QUEUE
               <ChevronRight size={22} strokeWidth={3} />
             </button>
-
-            <p className="text-xs text-neutral-400 text-center shrink-0">
-              Scanner auto-submits on Enter. Manual entry requires Enter or Add button.
-            </p>
           </div>
 
           <div className="flex gap-4 shrink-0">

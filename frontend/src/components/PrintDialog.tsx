@@ -53,7 +53,7 @@ export default function PrintDialog({ open, onClose, items, onSuccess }: Props) 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, pxW, pxH)
 
-    const sampleCode = `1234-1234`
+    const sampleCode = `0007-0013`
     const name       = items[0].picker_name
 
     const marginPx = Math.round(pxW * 0.03)

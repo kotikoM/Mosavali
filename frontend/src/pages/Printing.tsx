@@ -103,7 +103,7 @@ export default function Printing() {
     },
     {
       header: 'Name', id: 'name', enableColumnFilter: true,
-      accessorFn: row => `${row.first_name} ${row.last_name}`,
+      accessorFn: row => `${row.last_name} ${row.first_name}`,
       filterFn: 'includesString',
       cell: info => <span className="font-medium text-neutral-800">{info.getValue<string>()}</span>,
     },
@@ -284,7 +284,7 @@ export default function Printing() {
                   {queue.map(item => (
                     <div key={item.id} className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-semibold text-neutral-800">{item.picker.first_name} {item.picker.last_name}</span>
+                        <span className="text-sm font-semibold text-neutral-800">{item.picker.last_name} {item.picker.first_name}</span>
                         <span className="text-xs text-neutral-400"><span className="font-bold text-neutral-600">{item.quantity}</span> stickers</span>
                       </div>
                       <button onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))} className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded">
@@ -318,7 +318,7 @@ export default function Printing() {
         onClose={() => setPrintDialogOpen(false)}
         items={queue.map(q => ({
           picker_id:   q.picker.picker_id,
-          picker_name: `${q.picker.first_name} ${q.picker.last_name}`,
+          picker_name: `${q.picker.last_name} ${q.picker.first_name} `,
           quantity:    Number(q.quantity),
         }))}
         onSuccess={() => {

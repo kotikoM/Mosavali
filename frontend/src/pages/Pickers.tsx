@@ -25,7 +25,7 @@ export default function Pickers() {
   const [editPicker, setEditPicker]       = useState<Picker | null>(null)
   const [deleteTarget, setDeleteTarget]   = useState<Picker | null>(null)
   const [globalFilter, setGlobalFilter]   = useState('')
-  const [sorting, setSorting]             = useState<SortingState>([])
+  const [sorting, setSorting]             = useState<SortingState>([{ id: 'picker_id', desc: false }])
 
   const { data: pickers = [], isLoading } = useQuery({
     queryKey: ['pickers'],
@@ -106,7 +106,7 @@ export default function Pickers() {
     {
       header: 'Name',
       id: 'name',
-      accessorFn: row => `${row.first_name} ${row.last_name}`,
+      accessorFn: row => `${row.last_name} ${row.first_name}`,
       cell: info => <span className="font-medium text-neutral-800">{info.getValue<string>()}</span>,
     },
     {
