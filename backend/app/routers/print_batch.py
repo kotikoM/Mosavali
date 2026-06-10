@@ -129,7 +129,7 @@ async def generate_pdf(
     c   = rl_canvas.Canvas(buf, pagesize=(W, H))
 
     for batch, picker in pairs:
-        name = f"{picker.first_name} {picker.last_name}"
+        name = f"{picker.last_name} {picker.first_name}"
 
         for box_num in range(batch.box_number_from, batch.box_number_to + 1):
             code_str = f"{picker.picker_id:04d}-{box_num:04d}"
