@@ -41,7 +41,7 @@ export default function Pickers() {
     },
     onError: (error) => {
       if (axios.isAxiosError(error) && error.response?.status === 409) {
-        addToast(error.response.data.detail, 'error')
+        addToast(error.response.data.detail.message, 'error')
       } else {
         addToast('Failed to register picker', 'error')
       }
@@ -56,8 +56,12 @@ export default function Pickers() {
       setEditPicker(null)
       addToast('Picker updated successfully', 'success')
     },
-    onError: () => {
-      addToast('Failed to update picker', 'error')
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        addToast(error.response.data.detail.message, 'error')
+      } else {
+        addToast('Failed to register picker', 'error')
+      }
     }
   })
 
@@ -72,11 +76,20 @@ export default function Pickers() {
     }
   })
 
-  const handleSubmit = (data: PickerCreate | PickerUpdate) => {
-    if (editPicker) {
-      updateMutation.mutate({ id: editPicker.picker_id, data: data as PickerUpdate })
-    } else {
-      createMutation.mutate(data as PickerCreate)
+  const handleSubmit = async (data: PickerCreate | PickerUpdate): Promise<Record<string, string> | void> => {
+    try {
+      if (editPicker) {
+        await updateMutation.mutateAsync({ id: editPicker.picker_id, data: data as PickerUpdate })
+      } else {
+        await createMutation.mutateAsync(data as PickerCreate)
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        if (error.response.data.detail?.code === 'national_id_conflict') {
+          return { national_id: error.response.data.detail.message }
+        }
+      }
+      addToast(editPicker ? 'Failed to update picker' : 'Failed to register picker', 'error')
     }
   }
 

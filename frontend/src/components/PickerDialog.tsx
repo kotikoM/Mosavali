@@ -64,12 +64,12 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
     const e: Record<string, string> = {}
     if (!form.first_name.trim()) e.first_name = 'First name is required'
     if (!form.last_name.trim())  e.last_name  = 'Last name is required'
-    if (!isEdit) {
-      if (!form.national_id.trim())
-        e.national_id = 'National ID is required'
-      else if (!/^\d{11}$/.test(form.national_id))
-        e.national_id = 'Must be exactly 11 numeric digits'
-    }
+
+    if (!form.national_id.trim())
+      e.national_id = 'National ID is required'
+    else if (!/^\d{11}$/.test(form.national_id))
+      e.national_id = 'Must be exactly 11 numeric digits'
+
     const phoneDigits = form.phone.replace(/\D/g, '')
     if (!phoneDigits)
       e.phone = 'Phone number is required'
@@ -81,12 +81,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
 
   const handleSubmit = () => {
     if (!validate()) return
-    if (isEdit) {
-      const { national_id, ...rest } = form
-      onSubmit(rest)
-    } else {
-      onSubmit(form)
-    }
+    onSubmit(form)
   }
 
   const inp = (error?: string) =>
@@ -146,14 +141,13 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
             <div>
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">National ID</label>
               <input
-                className={`${inp(errors.national_id)} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={inp(errors.national_id)}
                 placeholder="XXXXXXXXXXX"
                 value={form.national_id}
                 onChange={e => {
                   const digits = e.target.value.replace(/\D/g, '').slice(0, 11)
                   setForm(f => ({ ...f, national_id: digits }))
                 }}
-                disabled={isEdit}
                 maxLength={11}
                 inputMode="numeric"
               />

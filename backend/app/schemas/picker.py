@@ -12,6 +12,7 @@ class PickerCreate(BaseModel):
 
 
 class PickerUpdate(BaseModel):
+    national_id:  str | None = None
     first_name:   str | None = None
     last_name:    str | None = None
     phone:        str | None = None
