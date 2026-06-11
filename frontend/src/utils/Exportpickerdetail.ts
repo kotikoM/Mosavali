@@ -16,28 +16,26 @@ const fill = (argb: string): ExcelJS.Fill =>
 // ── palette ───────────────────────────────────────────────────────────
 
 const G = {
-  // Chrome
   headerBg:     'FF4A7C45',
   titleBg:      'FFF2F8F1',
   border:       'FFD9EAD7',
   headerBorder: 'FF3D6439',
 
-  // Summary rows — prominent green tint so they pop against entry rows
-  summaryBg:    'FFD0E8CB',
-  summaryTop:   'FFB0D4A8',   // top/bottom border on summary rows
+  groupBg:      'FFD6E8D3',   // group header row background
+  groupText:    'FF2D5A27',   // group header text
+  groupBorder:  'FF7DB57A',   // group header bottom border
 
-  // Entry rows — very subtle alternating wash
+  summaryBg:    'FFD0E8CB',
+  summaryTop:   'FFB0D4A8',
+
   entryOdd:     'FFF7FAF6',
   entryEven:    'FFFFFFFF',
   entryBorder:  'FFEEEEEE',
 
-  // Text
   black:        'FF000000',
   white:        'FFFFFFFF',
   green:        'FF2D5A27',
-  blue:         'FF1D4ED8',
   indentGreen:  'FF8CB885',
-  mutedText:    'FF555555',
 }
 
 // ── border helpers ────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ const entryBorderStyle: Partial<ExcelJS.Borders> = {
 
 export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
 
-  // ── Collect all box types globally (for consistent columns) ───────
+  // ── Collect all box types globally ───────────────────────────────
   const allBoxTypes = Array.from(
     new Set(data.flatMap(p => p.box_type_summary.map(b => b.box_name)))
   ).sort()
@@ -77,8 +75,13 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
   const TOTAL_COLS   = TOTAL_KG_COL
   const LAST_COL     = col(TOTAL_COLS)
 
-  const HEADER_ROW = 4
-  const DATA_START = 5
+  // ── Row positions ─────────────────────────────────────────────────
+  const TITLE_ROW  = 1
+  const INFO_ROW   = 2
+  // row 3: spacer
+  const GROUP_ROW  = 4   // ← new group header row
+  const HEADER_ROW = 5
+  const DATA_START = 6
 
   const totalBoxesAll = data.reduce((s, p) => s + p.total_boxes, 0)
   const totalKgAll    = data.reduce((s, p) => s + p.total_kg,    0)
@@ -97,7 +100,7 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
   t.fill      = fill(G.titleBg)
   t.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
   t.border    = { bottom: { style: 'thin', color: { argb: G.border } } }
-  ws.getRow(1).height = 30
+  ws.getRow(TITLE_ROW).height = 30
 
   // ── Row 2: Summary stats ──────────────────────────────────────────
   ws.mergeCells(`A2:${LAST_COL}2`)
@@ -105,28 +108,79 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
   info.value     = `Exported ${new Date().toLocaleString()}  ·  ${data.length} pickers  ·  ${totalBoxesAll.toLocaleString()} boxes  ·  ${totalKgAll.toLocaleString()} kg total`
   info.font      = { name: 'Arial', size: 8, color: { argb: 'FFAAAAAA' } }
   info.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 }
-  ws.getRow(2).height = 14
+  ws.getRow(INFO_ROW).height = 14
 
   // ── Row 3: Spacer ─────────────────────────────────────────────────
-  ws.getRow(3).height = 6
+  ws.getRow(3).height = 5
 
-  // ── Row 4: Header ─────────────────────────────────────────────────
+  // ── Row 4: Group headers ──────────────────────────────────────────
+  //   Col A           : (blank marker)
+  //   Cols B–E        : PICKER
+  //   Cols F–(KG-1)   : BOX COUNTS
+  //   Col KG          : TOTAL KG
+  ws.getRow(GROUP_ROW).height = 16
+
+  // paint entire row with group bg first
+  for (let c = 1; c <= TOTAL_COLS; c++) {
+    const cell  = ws.getRow(GROUP_ROW).getCell(c)
+    cell.fill   = fill(G.groupBg)
+    cell.border = { bottom: { style: 'medium', color: { argb: G.groupBorder } } }
+  }
+
+  function groupCell(
+    startCol: number,
+    endCol:   number,
+    label:    string,
+  ) {
+    if (startCol < endCol) {
+      ws.mergeCells(`${col(startCol)}${GROUP_ROW}:${col(endCol)}${GROUP_ROW}`)
+    }
+    const c     = ws.getRow(GROUP_ROW).getCell(startCol)
+    c.value     = label
+    c.fill      = fill(G.groupBg)
+    c.font      = { name: 'Arial', size: 7, bold: true, color: { argb: G.groupText } }
+    c.alignment = { horizontal: 'center', vertical: 'middle' }
+    c.border    = {
+      left:   { style: 'thin',   color: { argb: G.groupBorder } },
+      bottom: { style: 'medium', color: { argb: G.groupBorder } },
+    }
+  }
+
+  // Col 1: marker (blank, no label)
+  groupCell(1, 1, '')
+
+  // Cols 2–5: PICKER
+  groupCell(2, 5, 'PICKER')
+
+  // Cols 6–(TOTAL_KG_COL−1): BOX COUNTS
+  const countsEnd = TOTAL_KG_COL - 1
+  groupCell(6, countsEnd, 'BOX COUNTS')
+
+  // Last col: TOTAL KG
+  groupCell(TOTAL_KG_COL, TOTAL_KG_COL, 'TOTAL KG')
+
+  // ── Row 5: Column headers ─────────────────────────────────────────
+  const boxColWidth = (bt: string): number => {
+    const label = `${bt} (${boxNetWeights[bt] ?? '?'}kg)`
+    return Math.max(12, label.length + 3)   // +3 for cell padding
+  }
+
   const headerDefs: { label: string; width: number }[] = [
-    { label: '',                                                        width: 4  },
-    { label: 'Name',                                                    width: 24 },
-    { label: 'National ID',                                             width: 15 },
-    { label: 'Origin',                                                  width: 14 },
-    { label: 'Phone',                                                   width: 14 },
-    { label: 'Total Boxes',                                             width: 13 },
+    { label: '',             width: 4  },
+    { label: 'Name',         width: 24 },
+    { label: 'National ID',  width: 15 },
+    { label: 'Origin',       width: 14 },
+    { label: 'Phone',        width: 14 },
+    { label: 'Total Boxes',  width: 13 },
     ...allBoxTypes.map(bt => ({
       label: `${bt} (${boxNetWeights[bt] ?? '?'}kg)`,
-      width: 15,
+      width: boxColWidth(bt),
     })),
-    { label: 'Total KG',                                                width: 12 },
+    { label: 'Total KG',     width: 12 },
   ]
 
   const hRow   = ws.getRow(HEADER_ROW)
-  hRow.height  = 22
+  hRow.height  = 20
   headerDefs.forEach(({ label, width }, i) => {
     const c     = hRow.getCell(i + 1)
     c.value     = label
@@ -152,8 +206,8 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
     for (const b of picker.box_type_summary) boxCounts[b.box_name] = b.count
 
     // ── Summary row ───────────────────────────────────────────────
-    const sr    = ws.getRow(rowN)
-    sr.height   = 21
+    const sr  = ws.getRow(rowN)
+    sr.height = 21
 
     function sumCell(
       colN:  number,
@@ -185,7 +239,7 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
     }
 
     sumCell(1, pickerIdx + 1,                              { bold: true, align: 'center', color: G.green })
-    sumCell(2, `${picker.first_name} ${picker.last_name}`, { bold: true })
+    sumCell(2, `${picker.last_name} ${picker.first_name}`, { bold: true })
     sumCell(3, picker.national_id,                         { mono: true, align: 'center' })
     sumCell(4, picker.origin_place ?? '—')
     sumCell(5, picker.phone,                               { mono: true, align: 'center' })
@@ -206,15 +260,14 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
 
     // ── Entry rows ────────────────────────────────────────────────
     picker.entries.forEach((entry, ei) => {
-      const er    = ws.getRow(rowN)
-      er.height   = 15
-      const bg    = ei % 2 === 0 ? G.entryOdd : G.entryEven
+      const er  = ws.getRow(rowN)
+      er.height = 15
+      const bg  = ei % 2 === 0 ? G.entryOdd : G.entryEven
 
-      // Paint all columns with row background so there are no white gaps
       for (let c = 1; c <= TOTAL_COLS; c++) {
-        const cell   = er.getCell(c)
-        cell.fill    = fill(bg)
-        cell.border  = entryBorderStyle
+        const cell  = er.getCell(c)
+        cell.fill   = fill(bg)
+        cell.border = entryBorderStyle
       }
 
       function entryCell(
@@ -244,19 +297,19 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
         c.border = entryBorderStyle
       }
 
-      entryCell(1, '↳',                                         { align: 'center', color: G.indentGreen })
-      entryCell(2, entry.barcode,                               { mono: true, bold: true })
-      entryCell(3, `${entry.box_name} (${entry.net_weight_kg}kg)`, {})
-      entryCell(4, entry.field_name,                            {})
-      entryCell(5, entry.harvest_date,                          { mono: true, align: 'center' })
+      entryCell(1, '↳',                                             { align: 'center', color: G.indentGreen })
+      entryCell(2, entry.barcode,                                   { mono: true, bold: true })
+      entryCell(3, `${entry.box_name} (${entry.net_weight_kg}kg)`,  {})
+      entryCell(4, entry.field_name,                                {})
+      entryCell(5, entry.harvest_date,                              { mono: true, align: 'center' })
 
       rowN++
     })
   })
 
   // ── Grand total row ───────────────────────────────────────────────
-  const gtr    = ws.getRow(rowN)
-  gtr.height   = 22
+  const gtr  = ws.getRow(rowN)
+  gtr.height = 22
 
   function grandCell(
     colN:  number,
