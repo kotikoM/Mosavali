@@ -18,7 +18,7 @@ import FieldManagementDialog from '../components/FieldManagementDialog'
 import BoxManagementDialog from '../components/BoxManagementDialog'
 import ScanErrorDialog from '../components/ScanErrorDialog'
 import { exportPickerDetailToExcel } from '../utils/exportPickerDetail'
-import { fmtTbilisiTime } from '../utils/time'
+import { fmtDate, fmtTbilisiTime } from '../utils/time'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -37,8 +37,6 @@ const BOX_COLORS = ['#2D5A27', '#65A75B', '#B2D3AD', '#6B705C', '#A8AB93']
 const PAGE_SIZE  = 25
 
 // ── helpers ────────────────────────────────────────────────────────────
-
-function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
 function formatBarcode(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -94,11 +92,11 @@ export default function Scanning() {
   const { playError }         = useErrorSound()
   const { play: playSuccess } = useSound()
   const inputRef              = useRef<HTMLInputElement>(null)
-  const today                 = fmt(new Date())
+  const today                 = fmtDate(new Date())
 
   // ── session state ────────────────────────────────────────────────
   const [sessionActive, setSessionActive] = useState(false)
-  const [harvestDate, setHarvestDate]     = useState(() => fmt(new Date()))
+  const [harvestDate, setHarvestDate]     = useState(() => fmtDate(new Date()))
   const [boxTypeId, setBoxTypeId]         = useState<number | null>(null)
   const [fieldId, setFieldId]             = useState<number | null>(null)
   const [queue, setQueue]                 = useState<QueueItem[]>([])
@@ -106,8 +104,8 @@ export default function Scanning() {
   const [errorPopup, setErrorPopup]       = useState<BarcodeCheckResponse | null>(null)
 
   // ── idle page state ──────────────────────────────────────────────
-  const [fromDate, setFromDate]               = useState(fmt(subDays(new Date(), 9)))
-  const [toDate, setToDate]                   = useState(fmt(new Date()))
+  const [fromDate, setFromDate]               = useState(fmtDate(subDays(new Date(), 9)))
+  const [toDate, setToDate]                   = useState(fmtDate(new Date()))
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
   const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
   const [pickerIdInput, setPickerIdInput]     = useState('')
@@ -161,7 +159,7 @@ export default function Scanning() {
   const barData = useMemo(() => {
     if (!statsData) return []
     return eachDayOfInterval({ start: parseISO(fromDate), end: parseISO(toDate) }).map(day => {
-      const dayStr   = fmt(day)
+      const dayStr   = fmtDate(day)
       const dayStats = statsData.stats.filter(s => s.harvest_date === dayStr)
       const entry: Record<string, any> = {
         date:  format(day, 'MMM dd'),
