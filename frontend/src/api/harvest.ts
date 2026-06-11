@@ -12,7 +12,7 @@ export interface HarvestEntry {
   box_number:        number
   box_type_id:       number
   harvest_date:      string
-  scan_date:         string
+  scanned_at:        string
   picker_first_name: string
   picker_last_name:  string
   box_name:          string
@@ -20,10 +20,10 @@ export interface HarvestEntry {
 }
 
 export interface BarcodeCheckResponse {
-  barcode:   string
-  valid:     boolean
-  reason:    string | null
-  scan_date: string | null
+  barcode:    string
+  valid:      boolean
+  reason:     string | null
+  scanned_at: string | null
 }
 
 export interface BulkScanRequest {
@@ -115,7 +115,7 @@ export interface PickerDetailExportEntry {
   net_weight_kg: number
   field_name:    string
   harvest_date:  string
-  scan_date:     string
+  scanned_at:    string
 }
 
 export interface PickerDetailBoxSummary {

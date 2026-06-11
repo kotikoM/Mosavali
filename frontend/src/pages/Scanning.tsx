@@ -39,6 +39,17 @@ const PAGE_SIZE  = 25
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
 
+function fmtScannedAt(iso: string): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone:   'Asia/Tbilisi',
+    year:       'numeric',
+    month:      '2-digit',
+    day:        '2-digit',
+    hour:       '2-digit',
+    minute:     '2-digit',
+  }).format(new Date(iso))
+}
+
 function formatBarcode(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
   return [digits.slice(0, 4), digits.slice(4, 8)].filter(Boolean).join('-')
@@ -203,7 +214,7 @@ export default function Scanning() {
     if (!barcode || !isComplete(barcode)) return
     if (queue.some(q => q.barcode === barcode)) {
       playError()
-      setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scan_date: null })
+      setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scanned_at: null })
       return
     }
     try {
@@ -279,6 +290,14 @@ export default function Scanning() {
       {
         header: 'Harvest Date', accessorKey: 'harvest_date',
         cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
+      },
+      {                                                          // ← new
+        header: 'Scanned At', accessorKey: 'scanned_at',
+        cell: info => (
+          <span className="font-mono text-sm text-neutral-500">
+            {fmtScannedAt(info.getValue<string>())}
+          </span>
+        ),
       },
     ]
 

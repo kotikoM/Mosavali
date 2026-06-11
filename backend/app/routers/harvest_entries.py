@@ -62,7 +62,7 @@ async def get_entries(
         .join(Picker, HarvestEntry.picker_id  == Picker.picker_id)
         .join(Box,    HarvestEntry.box_type_id == Box.box_id)
         .join(Field, HarvestEntry.field_id == Field.field_id)
-        .order_by(HarvestEntry.scan_date.desc())
+        .order_by(HarvestEntry.scanned_at.desc())
     )
     for f in filters:
         data_q = data_q.where(f)
@@ -77,7 +77,7 @@ async def get_entries(
             "box_number":        entry.box_number,
             "box_type_id":       entry.box_type_id,
             "harvest_date":      entry.harvest_date,
-            "scan_date":         entry.scan_date,
+            "scanned_at":        entry.scanned_at,
             "picker_first_name": picker.first_name,
             "picker_last_name":  picker.last_name,
             "box_name":          box.name,

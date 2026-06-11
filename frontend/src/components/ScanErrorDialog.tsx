@@ -39,8 +39,8 @@ export default function ScanErrorDialog({ error, onClose }: Props) {
           <p className="text-base text-neutral-500">
             {error.reason ? REASON_LABELS[error.reason] ?? error.reason : 'Unknown error'}
           </p>
-          {error.scan_date && (
-            <p className="text-sm text-neutral-400 mt-2">Previously scanned on {error.scan_date}</p>
+          {error.scanned_at && (
+            <p className="text-sm text-neutral-400 mt-2">Previously scanned on {error.scanned_at}</p>
           )}
           <p className="font-mono text-sm text-neutral-300 mt-3">{error.barcode}</p>
         </div>

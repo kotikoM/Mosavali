@@ -490,7 +490,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
       ec(3, `${entry.box_name} (${entry.net_weight_kg}kg)`)
       ec(4, entry.field_name)
       ec(5, entry.harvest_date,                                          { mono: true, align: 'center' })
-      ec(6, fmtTbilisi(entry.scan_date),                                 { mono: true, align: 'center' })
+      ec(6, fmtTbilisi(entry.scanned_at),                                 { mono: true, align: 'center' })
 
       rowN++
     })

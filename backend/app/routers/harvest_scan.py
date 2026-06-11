@@ -39,7 +39,7 @@ async def check_barcode(barcode: str, db: AsyncSession) -> BarcodeCheckResponse:
             barcode=barcode,
             valid=False,
             reason="already_scanned",
-            scan_date=existing.scan_date,
+            scanned_at=existing.scanned_at,
         )
 
     result = await db.execute(

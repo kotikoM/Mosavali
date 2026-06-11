@@ -13,4 +13,4 @@ class HarvestEntry(Base):
     box_number:   Mapped[int]      = mapped_column(Integer, primary_key=True)
     box_type_id:  Mapped[int]      = mapped_column(Integer, ForeignKey("box.box_id"), nullable=False)
     harvest_date: Mapped[date]     = mapped_column(Date, nullable=False)
-    scan_date:    Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    scanned_at:   Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())

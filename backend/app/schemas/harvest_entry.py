@@ -8,7 +8,7 @@ class HarvestEntryResponse(BaseModel):
     box_number:   int
     box_type_id:  int
     harvest_date: date
-    scan_date:    datetime
+    scanned_at:   datetime
 
     model_config = {"from_attributes": True}
 
@@ -21,7 +21,7 @@ class BarcodeCheckResponse(BaseModel):
     barcode:      str
     valid:        bool
     reason:       str | None = None
-    scan_date:    datetime | None = None
+    scanned_at:   datetime | None = None
 
 
 class BulkScanRequest(BaseModel):
@@ -52,7 +52,7 @@ class HarvestEntryRichResponse(BaseModel):
     box_number:        int
     box_type_id:       int
     harvest_date:      date
-    scan_date:         datetime
+    scanned_at:        datetime
     picker_first_name: str
     picker_last_name:  str
     box_name:          str
