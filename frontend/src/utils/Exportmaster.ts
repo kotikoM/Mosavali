@@ -212,7 +212,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     { label: 'National ID',                                                    width: 14 },
     { label: 'Phone',                                                          width: 13 },
     { label: 'Origin',                                                         width: 14 },
-    { label: 'IBAN',                                                           width: 26 },
+    { label: 'Bank Info',                                                           width: 26 },
     { label: 'Total kg',                                                       width: 11 },
     { label: 'Salary (GEL)',                                                   width: 15 },
     { label: 'Total Boxes',                                                    width: 12 },
@@ -267,7 +267,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     }
 
     dc(1, idx + 1,                          { align: 'center' })
-    dc(2, `${p.first_name} ${p.last_name}`, { bold: true })
+    dc(2, `${p.last_name} ${p.first_name}`, { bold: true })
     dc(3, p.national_id,                    { mono: true, align: 'center' })
     dc(4, p.phone          ?? '',           { align: 'center' })
     dc(5, p.origin_place   ?? '',           {})
@@ -431,7 +431,7 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     }
 
     sc(1, pickerIdx + 1,                              { bold: true, align: 'center', color: G.green })
-    sc(2, `${picker.first_name} ${picker.last_name}`, { bold: true })
+    sc(2, `${picker.last_name} ${picker.first_name}`, { bold: true })
     sc(3, picker.national_id,                         { mono: true, align: 'center' })
     sc(4, picker.origin_place ?? '—')
     sc(5, picker.phone,                               { mono: true, align: 'center' })
@@ -673,6 +673,7 @@ export async function exportMasterToExcel(data: MasterExportData) {
   const wb    = new ExcelJS.Workbook()
   wb.creator  = 'Mosavali'
   wb.created  = new Date()
+  wb.calcProperties = { fullCalcOnLoad: true }
 
   buildDailyHarvestSheet(wb,  data.picker_box_stats)
   buildStickerDetailSheet(wb, data.picker_detail)

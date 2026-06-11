@@ -99,6 +99,7 @@ export async function exportDailyHarvestToExcel(
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Mosavali'
   wb.created = new Date()
+  wb.calcProperties = { fullCalcOnLoad: true }
   const ws  = wb.addWorksheet('Daily Harvest')
 
   // ─── Row 1: Title ─────────────────────────────────────────────────
@@ -160,7 +161,7 @@ export async function exportDailyHarvestToExcel(
     { label: 'National ID',                                width: 14 },
     { label: 'Phone',                                      width: 13 },
     { label: 'Origin',                                     width: 14 },
-    { label: 'IBAN',                                       width: 26 },
+    { label: 'Bank Info',                                  width: 26 },
     { label: 'Total kg',                                   width: 11 },
     { label: 'Salary (GEL)',                               width: 15 },
     { label: 'Total Boxes',                                width: 12 },
@@ -237,7 +238,7 @@ export async function exportDailyHarvestToExcel(
     // 1  #
     cell(1, idx + 1,                          { align: 'center' })
     // 2  Name
-    cell(2, `${p.first_name} ${p.last_name}`, { bold: true })
+    cell(2, `${p.last_name} ${p.first_name}`, { bold: true })
     // 3  National ID
     cell(3, p.national_id,                    { mono: true, align: 'center' })
     // 4  Phone

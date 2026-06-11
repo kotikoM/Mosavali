@@ -90,7 +90,7 @@ export async function exportPickerDetailToExcel(data: PickerDetailExportRow[]) {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Mosavali'
   wb.created = new Date()
-  const ws  = wb.addWorksheet('Picker Detail')
+  const ws  = wb.addWorksheet('All Stickers')
 
   // ── Row 1: Title ──────────────────────────────────────────────────
   ws.mergeCells(`A1:${LAST_COL}1`)
