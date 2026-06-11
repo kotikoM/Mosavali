@@ -203,7 +203,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
         {
             "batch_id":        batch.batch_id,
             "picker_id":       batch.picker_id,
-            "picker_name":     f"{picker.first_name} {picker.last_name}",
+            "picker_name":     f"{picker.last_name} {picker.first_name} ",
             "national_id":     picker.national_id,
             "box_number_from": batch.box_number_from,
             "box_number_to":   batch.box_number_to,
