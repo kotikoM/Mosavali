@@ -265,7 +265,7 @@ export default function Scanning() {
       },
       {
         header: 'Picker', id: 'picker',
-        accessorFn: row => `${row.picker_first_name} ${row.picker_last_name}`,
+        accessorFn: row => `${row.picker_last_name} ${row.picker_first_name}`,
         cell: info => (
           <div>
             <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
