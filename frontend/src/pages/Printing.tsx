@@ -102,6 +102,16 @@ export default function Printing() {
       ),
     },
     {
+      header: 'Picker ID',
+      accessorKey: 'picker_id',
+      filterFn: 'includesString',
+      enableColumnFilter: true,
+      meta: { numericFilter: true },
+      cell: info => (
+        <span className="font-mono text-sm text-neutral-500">#{info.getValue<number>()}</span>
+      ),
+    },
+    {
       header: 'Name', id: 'name', enableColumnFilter: true,
       accessorFn: row => `${row.last_name} ${row.first_name}`,
       filterFn: 'includesString',
@@ -173,7 +183,12 @@ export default function Printing() {
                           <div className="relative">
                             <input
                               value={(header.column.getFilterValue() as string) ?? ''}
-                              onChange={e => header.column.setFilterValue(e.target.value)}
+                              onChange={e =>{
+                                  const raw = e.target.value
+                                  const val = header.column.columnDef.meta?.numericFilter ? raw.replace(/\D/g, '') : raw
+                                  header.column.setFilterValue(val)
+                              }}
+                              inputMode={header.column.columnDef.meta?.numericFilter ? 'numeric' : 'text'}
                               placeholder="Filter..."
                               className="w-full px-3 py-2 pr-6 text-sm rounded-lg border-2 border-neutral-200 bg-white outline-none focus:border-primary transition-colors placeholder:text-neutral-300 font-normal text-neutral-700"
                             />
