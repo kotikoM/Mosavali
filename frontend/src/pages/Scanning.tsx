@@ -18,6 +18,7 @@ import FieldManagementDialog from '../components/FieldManagementDialog'
 import BoxManagementDialog from '../components/BoxManagementDialog'
 import ScanErrorDialog from '../components/ScanErrorDialog'
 import { exportPickerDetailToExcel } from '../utils/exportPickerDetail'
+import { fmtTbilisiTime } from '../utils/time'
 
 // ── types ──────────────────────────────────────────────────────────────
 
@@ -38,17 +39,6 @@ const PAGE_SIZE  = 25
 // ── helpers ────────────────────────────────────────────────────────────
 
 function fmt(d: Date) { return format(d, 'yyyy-MM-dd') }
-
-function fmtScannedAt(iso: string): string {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone:   'Asia/Tbilisi',
-    year:       'numeric',
-    month:      '2-digit',
-    day:        '2-digit',
-    hour:       '2-digit',
-    minute:     '2-digit',
-  }).format(new Date(iso))
-}
 
 function formatBarcode(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -295,7 +285,7 @@ export default function Scanning() {
         header: 'Scanned At', accessorKey: 'scanned_at',
         cell: info => (
           <span className="font-mono text-sm text-neutral-500">
-            {fmtScannedAt(info.getValue<string>())}
+            {fmtTbilisiTime(info.getValue<string>())}
           </span>
         ),
       },
