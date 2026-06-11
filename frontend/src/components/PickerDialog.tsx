@@ -205,7 +205,7 @@ export default function PickerDialog({ open, onClose, onSubmit, picker, loading 
             </label>
             <textarea
               className={`${inp()} resize-none`}
-              placeholder="Contract specifics or performance history notes..."
+              placeholder="Contract specifics or any other note"
               rows={3}
               value={form.note}
               onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
