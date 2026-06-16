@@ -1,19 +1,35 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.picker import router as pickers_router
-from app.routers.field import router as fields_router
-from app.routers.box import router as boxes_router
-from app.routers.print_batch import router as print_batches_router
+from app.routers.picker          import router as pickers_router
+from app.routers.field           import router as fields_router
+from app.routers.box             import router as boxes_router
+from app.routers.print_batch     import router as print_batches_router
 from app.routers.harvest_scan    import router as harvest_scan_router
 from app.routers.harvest_entries import router as harvest_entries_router
 from app.routers.harvest_stats   import router as harvest_stats_router
-from app.routers.harvest_export   import router as harvest_export_router
-from app.routers.master_export import router as master_export_router
+from app.routers.harvest_export  import router as harvest_export_router
+from app.routers.master_export   import router as master_export_router
+
+# ── logging ────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+# suppress noisy sqlalchemy query logs unless you need them
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Mosavali starting up")
     yield
+    logger.info("Mosavali shutting down")
 
 
 app = FastAPI(title="Mosavali", version="0.1.0", lifespan=lifespan)

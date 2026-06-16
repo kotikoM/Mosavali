@@ -13,6 +13,10 @@ from app.schemas.harvest_entry import (
     HarvestEntryResponse,
 )
 
+import logging
+
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/harvest", tags=["harvest-scan"])
 
 
@@ -68,12 +72,30 @@ async def commit_scan(
     data: BulkScanRequest,
     db:   AsyncSession = Depends(get_db),
 ):
-    problems = []
-    entries  = []
+    logger.info(
+        "Commit request — %d barcodes | field=%d box_type=%d date=%s",
+        len(data.barcodes), data.field_id, data.box_type_id, data.harvest_date
+    )
+
+    problems  = []
+    entries   = []
+    seen      = set()
 
     for barcode in data.barcodes:
+        if barcode in seen:
+            logger.warning("Within-batch duplicate: %s", barcode)
+            problems.append(BarcodeCheckResponse(
+                barcode=barcode,
+                valid=False,
+                reason="already_scanned",
+                scanned_at=None,
+            ))
+            continue
+        seen.add(barcode)
+
         result = await check_barcode(barcode, db)
         if not result.valid:
+            logger.warning("Invalid barcode: %s — reason: %s", barcode, result.reason)
             problems.append(result)
         else:
             picker_id, box_number = parse_barcode(barcode)
@@ -85,17 +107,34 @@ async def commit_scan(
                 harvest_date=data.harvest_date,
             ))
 
-    if problems:
-        return BulkScanResult(success=False, accepted=[], problems=problems)
+    logger.info(
+        "Pre-commit summary — valid: %d | problems: %d",
+        len(entries), len(problems)
+    )
 
-    for entry in entries:
-        db.add(entry)
-    await db.commit()
-    for entry in entries:
-        await db.refresh(entry)
+    if entries:
+        try:
+            for entry in entries:
+                db.add(entry)
+            await db.commit()
+            for entry in entries:
+                await db.refresh(entry)
+            logger.info("Committed %d entries successfully", len(entries))
+        except Exception as e:
+            logger.error("Commit failed — %s", str(e), exc_info=True)
+            raise
+
+    if problems:
+        for p in problems:
+            logger.warning("Problem — barcode: %s reason: %s", p.barcode, p.reason)
+
+    logger.info(
+        "Commit complete — accepted: %d | skipped: %d | success: %s",
+        len(entries), len(problems), len(problems) == 0
+    )
 
     return BulkScanResult(
-        success=True,
+        success=len(problems) == 0,
         accepted=[HarvestEntryResponse.model_validate(e) for e in entries],
-        problems=[],
+        problems=problems,
     )

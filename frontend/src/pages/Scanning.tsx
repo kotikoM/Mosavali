@@ -47,7 +47,6 @@ function isComplete(barcode: string): boolean {
   return /^\d{4}-\d{4}$/.test(barcode)
 }
 
-// Build the search string passed to the API.
 function buildEntriesSearch(picker: string, box: string): string {
   const p = picker.trim()
   const b = box.trim()
@@ -92,6 +91,7 @@ export default function Scanning() {
   const { playError }         = useErrorSound()
   const { play: playSuccess } = useSound()
   const inputRef              = useRef<HTMLInputElement>(null)
+  const pendingBarcodes       = useRef<Set<string>>(new Set())
   const today                 = fmtDate(new Date())
 
   // ── session state ────────────────────────────────────────────────
@@ -114,7 +114,7 @@ export default function Scanning() {
   const [entriesPage, setEntriesPage]         = useState(1)
   const [exportingDetail, setExportingDetail] = useState(false)
 
-  // ── debounce: rebuild search string whenever either input changes ─
+  // ── debounce search ──────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(buildEntriesSearch(pickerIdInput, boxNumInput))
@@ -127,17 +127,6 @@ export default function Scanning() {
   // ── queries ──────────────────────────────────────────────────────
   const { data: boxes  = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
-
-  const handleExportDetail = async () =>{
-    if (exportingDetail) return
-      setExportingDetail(true)
-      try {
-        const data = await getPickerDetailExport()
-        await exportPickerDetailToExcel(data)
-      } finally {
-        setExportingDetail(false)
-    }
-  }
 
   const { data: entriesData, isLoading: entriesLoading } = useQuery({
     queryKey: ['harvest', entriesPage, debouncedSearch],
@@ -173,6 +162,18 @@ export default function Scanning() {
     })
   }, [statsData, fromDate, toDate, boxes])
 
+  // ── export ───────────────────────────────────────────────────────
+  const handleExportDetail = async () => {
+    if (exportingDetail) return
+    setExportingDetail(true)
+    try {
+      const data = await getPickerDetailExport()
+      await exportPickerDetailToExcel(data)
+    } finally {
+      setExportingDetail(false)
+    }
+  }
+
   // ── session handlers ─────────────────────────────────────────────
   useEffect(() => {
     if (sessionActive) setTimeout(() => inputRef.current?.focus(), 100)
@@ -184,6 +185,7 @@ export default function Scanning() {
     setInput('')
     setBoxTypeId(null)
     setFieldId(null)
+    pendingBarcodes.current.clear()
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,11 +202,18 @@ export default function Scanning() {
 
   const submitBarcode = useCallback(async (barcode: string) => {
     if (!barcode || !isComplete(barcode)) return
+
+    // already committed in queue
     if (queue.some(q => q.barcode === barcode)) {
       playError()
       setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scanned_at: null })
       return
     }
+
+    // race condition guard — barcode already being verified right now
+    if (pendingBarcodes.current.has(barcode)) return
+    pendingBarcodes.current.add(barcode)
+
     try {
       const result = await checkBarcode(barcode)
       if (!result.valid) {
@@ -212,12 +221,18 @@ export default function Scanning() {
         setErrorPopup(result)
         return
       }
-      setQueue(prev => [...prev, { id: crypto.randomUUID(), barcode, status: 'valid', reason: null }])
+      setQueue(prev => {
+        // double-check after async gap — another scan may have landed
+        if (prev.some(q => q.barcode === barcode)) return prev
+        return [...prev, { id: crypto.randomUUID(), barcode, status: 'valid', reason: null }]
+      })
       playSuccess('success')
       setInput('')
       inputRef.current?.focus()
     } catch {
       addToast('Failed to check barcode', 'error')
+    } finally {
+      pendingBarcodes.current.delete(barcode)
     }
   }, [queue, playError])
 
@@ -232,62 +247,66 @@ export default function Scanning() {
       })
     },
     onSuccess: (data) => {
-      if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ['harvest'] })
-        queryClient.invalidateQueries({ queryKey: ['harvest-stats'] })
-        addToast(`${data.accepted.length} entries committed successfully`, 'success')
+      queryClient.invalidateQueries({ queryKey: ['harvest'] })
+      queryClient.invalidateQueries({ queryKey: ['harvest-stats'] })
+      if (data.accepted.length > 0) {
+        if (data.problems.length > 0) {
+          addToast(`${data.accepted.length} committed — ${data.problems.length} skipped (duplicates or invalid)`, 'error')
+        } else {
+          addToast(`${data.accepted.length} entries committed successfully`, 'success')
+        }
         endSession()
       } else {
-        addToast(`Commit failed — ${data.problems.length} problem(s) detected`, 'error')
+        addToast(`Commit failed — all ${data.problems.length} barcodes had problems`, 'error')
       }
     },
     onError: () => addToast('Failed to commit batch', 'error'),
   })
 
   // ── table columns ────────────────────────────────────────────────
-    const entryColumns: ColumnDef<HarvestEntry>[] = [
-      {
-        header: 'Barcode', id: 'barcode',
-        accessorFn: row => `${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
-        cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
-      },
-      {
-        header: 'Picker', id: 'picker',
-        accessorFn: row => `${row.picker_last_name} ${row.picker_first_name}`,
-        cell: info => (
-          <div>
-            <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
-            <span className="font-mono text-xs text-neutral-400">#{info.row.original.picker_id}</span>
-          </div>
-        ),
-      },
-      {
-        header: 'Box Type', id: 'box_type',
-        accessorFn: row => row.box_name,
-        cell: info => (
-          <div>
-            <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
-            <span className="text-xs text-neutral-400">{info.row.original.box_net_weight_kg} kg net</span>
-          </div>
-        ),
-      },
-      {
-        header: 'Field', accessorKey: 'field_name',
-        cell: info => <span className="text-sm text-neutral-700">{info.getValue<string>()}</span>,
-      },
-      {
-        header: 'Harvest Date', accessorKey: 'harvest_date',
-        cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
-      },
-      {                                                          // ← new
-        header: 'Scanned At', accessorKey: 'scanned_at',
-        cell: info => (
-          <span className="font-mono text-sm text-neutral-500">
-            {fmtTbilisiTime(info.getValue<string>())}
-          </span>
-        ),
-      },
-    ]
+  const entryColumns: ColumnDef<HarvestEntry>[] = [
+    {
+      header: 'Barcode', id: 'barcode',
+      accessorFn: row => `${String(row.picker_id).padStart(4,'0')}-${String(row.box_number).padStart(4,'0')}`,
+      cell: info => <span className="font-mono text-sm text-neutral-700">{info.getValue<string>()}</span>,
+    },
+    {
+      header: 'Picker', id: 'picker',
+      accessorFn: row => `${row.picker_last_name} ${row.picker_first_name}`,
+      cell: info => (
+        <div>
+          <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
+          <span className="font-mono text-xs text-neutral-400">#{info.row.original.picker_id}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Box Type', id: 'box_type',
+      accessorFn: row => row.box_name,
+      cell: info => (
+        <div>
+          <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
+          <span className="text-xs text-neutral-400">{info.row.original.box_net_weight_kg} kg net</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Field', accessorKey: 'field_name',
+      cell: info => <span className="text-sm text-neutral-700">{info.getValue<string>()}</span>,
+    },
+    {
+      header: 'Harvest Date', accessorKey: 'harvest_date',
+      cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>()}</span>,
+    },
+    {
+      header: 'Scanned At', accessorKey: 'scanned_at',
+      cell: info => (
+        <span className="font-mono text-sm text-neutral-500">
+          {fmtTbilisiTime(info.getValue<string>())}
+        </span>
+      ),
+    },
+  ]
 
   const entryTable = useReactTable({
     data:                entries,
@@ -305,8 +324,7 @@ export default function Scanning() {
         <h1 className="text-3xl font-bold text-neutral-800">Scanning</h1>
 
         {/* Top row */}
-        <div className="grid grid-cols-4 gap-4">
-
+        <div className="grid grid-cols-3 gap-4">
           <button
             onClick={() => setSessionActive(true)}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-white/20 hover:border-white/50 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
@@ -336,7 +354,6 @@ export default function Scanning() {
             </div>
             <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
           </button>
-
         </div>
 
         {/* Bar chart */}
@@ -410,66 +427,66 @@ export default function Scanning() {
 
         {/* Entries table */}
         <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
-        <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100">
-          <div className="shrink-0">
-            <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
-            <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
-          </div>
+          <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100">
+            <div className="shrink-0">
+              <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
+              <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
+            </div>
 
-          <div className="w-px h-12 bg-neutral-200 shrink-0" />
+            <div className="w-px h-12 bg-neutral-200 shrink-0" />
 
-          <div className="flex items-center gap-1">
-            <div className="flex flex-col gap-0.5">
-              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker ID</label>
-              <div className="relative">
-                <input
-                  value={pickerIdInput}
-                  onChange={e => setPickerIdInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0007"
-                  className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
-                />
-                {pickerIdInput && (
-                  <button onClick={() => setPickerIdInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                    <X size={14} />
-                  </button>
-                )}
+            <div className="flex items-center gap-1">
+              <div className="flex flex-col gap-0.5">
+                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker ID</label>
+                <div className="relative">
+                  <input
+                    value={pickerIdInput}
+                    onChange={e => setPickerIdInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="0007"
+                    className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
+                  />
+                  {pickerIdInput && (
+                    <button onClick={() => setPickerIdInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <span className="text-neutral-300 font-bold mt-5">—</span>
+
+              <div className="flex flex-col gap-0.5">
+                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Box No.</label>
+                <div className="relative">
+                  <input
+                    value={boxNumInput}
+                    onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="0013"
+                    className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
+                  />
+                  {boxNumInput && (
+                    <button onClick={() => setBoxNumInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            <span className="text-neutral-300 font-bold mt-5">—</span>
+            <div className="w-px h-12 bg-neutral-200 shrink-0" />
 
             <div className="flex flex-col gap-0.5">
-              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Box No.</label>
-              <div className="relative">
-                <input
-                  value={boxNumInput}
-                  onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0013"
-                  className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
-                />
-                {boxNumInput && (
-                  <button onClick={() => setBoxNumInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export</label>
+              <button
+                onClick={handleExportDetail}
+                disabled={exportingDetail || entriesTotal === 0}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-neutral-200 text-sm font-semibold text-neutral-600 hover:border-primary-300 hover:text-primary-700 hover:bg-primary-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FileDown size={15} strokeWidth={2.5} />
+                {exportingDetail ? 'Exporting…' : 'Excel'}
+              </button>
             </div>
           </div>
-
-          <div className="w-px h-12 bg-neutral-200 shrink-0" />
-
-          <div className="flex flex-col gap-0.5">
-            <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export</label>
-            <button
-              onClick={handleExportDetail}
-              disabled={exportingDetail || entriesTotal === 0}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-neutral-200 text-sm font-semibold text-neutral-600 hover:border-primary-300 hover:text-primary-700 hover:bg-primary-50 active:bg-primary-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <FileDown size={15} strokeWidth={2.5} />
-              {exportingDetail ? 'Exporting…' : 'Excel'}
-            </button>
-          </div>
-        </div>
 
           {entriesLoading ? (
             <div className="flex items-center justify-center py-20 text-neutral-400 text-sm">Loading...</div>
@@ -668,41 +685,41 @@ export default function Scanning() {
 
         {/* Right */}
         <div className="w-80 shrink-0 flex flex-col py-6 pr-6">
-        <div className="flex-1 bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
-          <div className="bg-primary-700 py-8 flex flex-col items-center justify-center shrink-0">
-            <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
-            <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
-          </div>
+          <div className="flex-1 bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
+            <div className="bg-primary-700 py-8 flex flex-col items-center justify-center shrink-0">
+              <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
+              <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
+            </div>
 
-          <div className="px-5 py-3 border-b border-neutral-100 shrink-0">
-            <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
-          </div>
+            <div className="px-5 py-3 border-b border-neutral-100 shrink-0">
+              <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
+            </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {queue.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-2">
-                <ScanBarcode size={28} className="text-neutral-200" />
-                <p className="text-sm text-neutral-300">No barcodes yet</p>
-              </div>
-            ) : (
-              <div className="flex flex-col">
-                {[...queue].reverse().map(item => (
-                  <div key={item.id} className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 bg-neutral-50">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle size={15} className="text-neutral-300" strokeWidth={2.5} />
-                      <span className="font-mono text-sm text-neutral-700">{item.barcode}</span>
+            <div className="flex-1 overflow-y-auto">
+              {queue.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 gap-2">
+                  <ScanBarcode size={28} className="text-neutral-200" />
+                  <p className="text-sm text-neutral-300">No barcodes yet</p>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {[...queue].reverse().map(item => (
+                    <div key={item.id} className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-50 bg-neutral-50">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle size={15} className="text-neutral-300" strokeWidth={2.5} />
+                        <span className="font-mono text-sm text-neutral-700">{item.barcode}</span>
+                      </div>
+                      <button
+                        onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))}
+                        className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded"
+                      >
+                        <Trash2 size={14} strokeWidth={2.5} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setQueue(prev => prev.filter(q => q.id !== item.id))}
-                      className="text-neutral-200 hover:text-red-500 transition-colors p-1 rounded"
-                    >
-                      <Trash2 size={14} strokeWidth={2.5} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
