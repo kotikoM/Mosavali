@@ -14,11 +14,7 @@ import DatePicker from '../components/DatePicker'
 import { exportDailyHarvestToExcel } from '../utils/exportDailyHarvest'
 import { fmtDate, todayTbilisi } from '../utils/time'
 
-// ── types ──────────────────────────────────────────────────────────────
-
 type FilterMode = 'day' | 'interval' | 'alltime'
-
-// ── helpers ────────────────────────────────────────────────────────────
 
 const PIE_BASE_COLOR = '#2D5A27'
 
@@ -43,8 +39,6 @@ function buildPieColors(baseHex: string, count: number): string[] {
     return `hsl(${hDeg}, ${sPct}%, ${lPct}%)`
   })
 }
-
-// ── breakdown dropdown ─────────────────────────────────────────────────
 
 interface BreakdownDropdownProps {
   open:     boolean
@@ -94,18 +88,14 @@ function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
   )
 }
 
-// ── main component ─────────────────────────────────────────────────────
-
 export default function Dashboard() {
 
-  // ── island filter state ──────────────────────────────────────────────
   const [filterMode,  setFilterMode]  = useState<FilterMode>('alltime')
   const [singleDate,  setSingleDate]  = useState(todayTbilisi)
   const [fromDate,    setFromDate]    = useState(todayTbilisi)
   const [toDate,      setToDate]      = useState(todayTbilisi)
   const [bkdOpen,     setBkdOpen]     = useState(false)
 
-  // ── picker table state ───────────────────────────────────────────────
   const [dailySortBy,       setDailySortBy]       = useState<'total_boxes' | 'total_kg'>('total_boxes')
   const [dailySortDir,      setDailySortDir]       = useState<'desc' | 'asc'>('desc')
   const [dailyFrom,         setDailyFrom]          = useState(todayTbilisi)
@@ -116,8 +106,6 @@ export default function Dashboard() {
   const [dailyOriginSearch, setDailyOriginSearch]  = useState('')
   const [exporting,         setExporting]          = useState(false)
   const [selectedPickerIds, setSelectedPickerIds]  = useState<Set<number>>(new Set())
-
-  // ── queries ──────────────────────────────────────────────────────────
 
   const { data: overview } = useQuery({
     queryKey: ['harvest-overview'],
@@ -147,8 +135,6 @@ export default function Dashboard() {
     queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
   })
 
-  // ── effects ──────────────────────────────────────────────────────────
-
   useEffect(() => {
     if (!bkdOpen) return
     const h = () => setBkdOpen(false)
@@ -165,8 +151,6 @@ export default function Dashboard() {
   useEffect(() => {
     setSelectedPickerIds(new Set())
   }, [dailyFrom, dailyTo, dailySearch, dailyOriginSearch])
-
-  // ── derived: island ──────────────────────────────────────────────────
 
   const activePickers = summary?.active_pickers ?? 0
   const totalPickers  = overview?.total_pickers  ?? 0
@@ -185,8 +169,6 @@ export default function Dashboard() {
     [fieldStats.length],
   )
   const fieldTotal = fieldStats.reduce((s, f) => s + f.total_kg, 0)
-
-  // ── derived: picker table ────────────────────────────────────────────
 
   const dailyColumns = useMemo(() => {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
@@ -242,8 +224,6 @@ export default function Dashboard() {
     }
   }
 
-  // ── render ────────────────────────────────────────────────────────────
-
   return (
     <div className="flex flex-col gap-6">
 
@@ -255,15 +235,13 @@ export default function Dashboard() {
         style={{ height: 'calc(100vh - 7rem)' }}
       >
 
-        {/* ── header ──────────────────────────────────────────────── */}
+        {/* header */}
         <div className="flex items-center gap-5 px-8 py-5 border-b-2 border-neutral-100 shrink-0 flex-wrap gap-y-3">
 
-          {/* title */}
           <span className="text-xl font-bold text-neutral-900 shrink-0">Harvest Report</span>
 
           <div className="w-px h-7 bg-neutral-200 shrink-0" />
 
-          {/* mode toggle */}
           <div className="flex items-center bg-neutral-100 rounded-xl p-1 gap-0.5 shrink-0">
             {(['day', 'interval', 'alltime'] as FilterMode[]).map(mode => (
               <button
@@ -282,7 +260,6 @@ export default function Dashboard() {
 
           <div className="w-px h-7 bg-neutral-200 shrink-0" />
 
-          {/* date controls — morph based on mode */}
           {filterMode === 'day' && (
             <DatePicker value={singleDate} onChange={setSingleDate} />
           )}
@@ -295,28 +272,27 @@ export default function Dashboard() {
             </div>
           )}
 
-                {filterMode === 'alltime' && (
-                  overview?.first_harvest_date
-                    ? (
-                      <span className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-sm font-medium text-primary-700 whitespace-nowrap">
-                        Since {format(parseISO(overview.first_harvest_date), 'MMM d, yyyy')}
-                      </span>
-                    ) : (
-                      <span className="flex items-center px-4 py-2.5 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm font-medium text-neutral-400 whitespace-nowrap">
-                        All records
-                      </span>
-                    )
-                )}
+          {filterMode === 'alltime' && (
+            overview?.first_harvest_date
+              ? (
+                <span className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-sm font-medium text-primary-700 whitespace-nowrap">
+                  Since {format(parseISO(overview.first_harvest_date), 'MMM d, yyyy')}
+                </span>
+              ) : (
+                <span className="flex items-center px-4 py-2.5 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm font-medium text-neutral-400 whitespace-nowrap">
+                  All records
+                </span>
+              )
+          )}
 
         </div>
 
-        {/* ── body ────────────────────────────────────────────────── */}
+        {/* body */}
         <div className="flex-1 min-h-0 flex">
 
-          {/* ── left: 3 stats ─────────────────────────────────────── */}
+          {/* left: 3 stats */}
           <div className="flex flex-col border-r-2 border-neutral-100" style={{ flex: '0 0 66.667%' }}>
 
-            {/* PICKERS ACTIVE */}
             <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
                 Pickers Active
@@ -339,13 +315,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* BOXES SCANNED */}
             <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
-                  Boxes Scanned
-                </span>
-              </div>
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+                Boxes Scanned
+              </span>
               <div className="flex items-baseline gap-3">
                 <span
                   className="font-mono font-black text-primary-800 leading-none"
@@ -365,7 +338,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* HARVESTED */}
             <div className="flex-1 flex flex-col justify-between px-10 py-8">
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
                 Harvested
@@ -377,10 +349,7 @@ export default function Dashboard() {
                 >
                   {summaryLoading ? '—' : totalKg.toLocaleString()}
                 </span>
-                <span
-                  className="font-black text-neutral-400 leading-none"
-                  style={{ fontSize: '36px' }}
-                >
+                <span className="font-black text-neutral-400 leading-none" style={{ fontSize: '36px' }}>
                   kg
                 </span>
               </div>
@@ -388,10 +357,9 @@ export default function Dashboard() {
 
           </div>
 
-          {/* ── right: field donut ─────────────────────────────────── */}
+          {/* right: field donut */}
           <div className="flex-1 flex flex-col px-8 py-8 min-h-0">
 
-            {/* section header */}
             <div className="flex items-start justify-between mb-6 shrink-0">
               <p className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
                 Harvest By Field
@@ -413,8 +381,6 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-0">
-
-                {/* donut */}
                 <div className="shrink-0" style={{ width: 220, height: 220 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -446,7 +412,6 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* legend */}
                 <div className="w-full flex flex-col gap-3">
                   {fieldStats.map((f, idx) => {
                     const pct = fieldTotal > 0 ? ((f.total_kg / fieldTotal) * 100).toFixed(1) : '0'
@@ -473,7 +438,6 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-
               </div>
             )}
           </div>
@@ -484,7 +448,7 @@ export default function Dashboard() {
       {/* ── DAILY HARVEST TABLE ──────────────────────────────────────── */}
       <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white' : 'rounded-2xl'}`}>
 
-        {/* header */}
+        {/* header bar */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
 
           <div className="shrink-0">
@@ -567,19 +531,21 @@ export default function Dashboard() {
 
         </div>
 
-        {/* body */}
+        {/* table body */}
         {dailyLoading ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
         ) : filteredDailyStats.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">No data for this range</div>
         ) : (
-          <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden min-h-0' : ''}`}>
+          // FIX: overflow-y-auto on the outer wrapper so both panels share
+          // the same vertical scroll. Right panel keeps overflow-x-auto only.
+          <div className={`flex ${dailyMaximized ? 'flex-1 overflow-y-auto min-h-0' : ''}`}>
 
-            {/* frozen left */}
+            {/* frozen left panel */}
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
-                  <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
                     <th className="px-4 py-4 w-10" />
                     <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
@@ -648,11 +614,11 @@ export default function Dashboard() {
               </table>
             </div>
 
-            {/* scrollable day columns */}
-            <div className={`flex-1 overflow-x-auto ${dailyMaximized ? 'overflow-y-auto' : ''}`}>
+            {/* scrollable day columns — horizontal scroll only */}
+            <div className="flex-1 overflow-x-auto">
               <table>
                 <thead>
-                  <tr className="border-b-2 border-neutral-100 bg-neutral-50">
+                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
                     {dailyColumns.map(day => (
                       <th key={day} className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap min-w-36">
                         {format(parseISO(day), 'MMM dd')}
