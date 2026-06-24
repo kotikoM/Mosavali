@@ -184,7 +184,7 @@ export default function Pickers() {
         <div>
         <h1 className="text-3xl font-bold text-neutral-800">Pickers</h1>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <button
             onClick={handleOpenCreate}
             className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-primary-700 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
