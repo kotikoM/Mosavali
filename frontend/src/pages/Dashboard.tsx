@@ -288,26 +288,27 @@ export default function Dashboard() {
         </div>
 
         {/* body */}
-        <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 min-h-0 flex overflow-hidden">
 
           {/* left: 3 stats */}
-          <div className="flex flex-col border-r-2 border-neutral-100" style={{ flex: '0 0 66.667%' }}>
+          <div className="flex flex-col border-r-2 border-neutral-100 overflow-hidden" style={{ flex: '0 0 66.667%' }}>
 
-            <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+            {/* PICKERS ACTIVE */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-6 border-b border-neutral-100 min-h-0">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Pickers Active
               </span>
-              <div className="flex items-baseline gap-3">
+              <div className="flex items-baseline gap-3 min-w-0 overflow-hidden">
                 <span
-                  className="font-mono font-black text-neutral-900 leading-none"
-                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                  className="font-mono font-black text-neutral-900 leading-none shrink-0"
+                  style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
                 >
                   {summaryLoading ? '—' : activePickers}
                 </span>
                 {!summaryLoading && totalPickers > 0 && (
                   <span
-                    className="font-mono font-black text-neutral-300 leading-none"
-                    style={{ fontSize: '36px', letterSpacing: '-2px' }}
+                    className="font-mono font-black text-neutral-300 leading-none shrink-0"
+                    style={{ fontSize: 'clamp(1rem, 4vh, 36px)', letterSpacing: '-2px' }}
                   >
                     /{totalPickers}
                   </span>
@@ -315,19 +316,20 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+            {/* BOXES SCANNED */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-6 border-b border-neutral-100 min-h-0">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Boxes Scanned
               </span>
-              <div className="flex items-baseline gap-3">
+              <div className="flex items-baseline gap-3 min-w-0 overflow-hidden">
                 <span
-                  className="font-mono font-black text-primary-800 leading-none"
-                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                  className="font-mono font-black text-primary-800 leading-none shrink-0"
+                  style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
                 >
                   {summaryLoading ? '—' : totalBoxes.toLocaleString()}
                 </span>
                 {!summaryLoading && Object.keys(boxBreakdownCounts).length > 0 && (
-                  <div className="relative" style={{ transform: 'translateY(6px)' }}>
+                  <div className="relative shrink-0" style={{ transform: 'translateY(6px)' }}>
                     <BreakdownDropdown
                       open={bkdOpen}
                       onToggle={() => setBkdOpen(o => !o)}
@@ -338,18 +340,22 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col justify-between px-10 py-8">
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+            {/* HARVESTED */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-6 min-h-0">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Harvested
               </span>
-              <div className="flex items-baseline gap-4">
+              <div className="flex items-baseline gap-4 min-w-0 overflow-hidden">
                 <span
-                  className="font-mono font-black text-neutral-900 leading-none"
-                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                  className="font-mono font-black text-neutral-900 leading-none shrink-0"
+                  style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
                 >
                   {summaryLoading ? '—' : totalKg.toLocaleString()}
                 </span>
-                <span className="font-black text-neutral-400 leading-none" style={{ fontSize: '36px' }}>
+                <span
+                  className="font-black text-neutral-400 leading-none shrink-0"
+                  style={{ fontSize: 'clamp(1rem, 4vh, 36px)' }}
+                >
                   kg
                 </span>
               </div>
@@ -357,10 +363,10 @@ export default function Dashboard() {
 
           </div>
 
-          {/* right: field donut */}
-          <div className="flex-1 flex flex-col px-8 py-8 min-h-0">
+          {/* right: field donut — scrollable so many fields never overflow */}
+          <div className="flex-1 flex flex-col px-8 py-8 min-h-0 overflow-y-auto">
 
-            <div className="flex items-start justify-between mb-6 shrink-0">
+            <div className="flex items-start justify-between mb-4 shrink-0">
               <p className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
                 Harvest By Field
               </p>
@@ -380,8 +386,16 @@ export default function Dashboard() {
                 No field data for this period
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-0">
-                <div className="shrink-0" style={{ width: 220, height: 220 }}>
+              <div className="flex flex-col items-center gap-6">
+
+                {/* donut — width and height both clamp so it shrinks at high zoom */}
+                <div
+                  className="shrink-0 w-full"
+                  style={{
+                    maxWidth:  'min(220px, 100%)',
+                    height:    'min(220px, 30vh)',
+                  }}
+                >
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -389,7 +403,7 @@ export default function Dashboard() {
                         dataKey="total_kg"
                         nameKey="field_name"
                         cx="50%" cy="50%"
-                        innerRadius={62} outerRadius={100}
+                        innerRadius="45%" outerRadius="72%"
                         paddingAngle={3}
                         animationBegin={0}
                         animationDuration={700}
@@ -412,6 +426,7 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                 </div>
 
+                {/* legend */}
                 <div className="w-full flex flex-col gap-3">
                   {fieldStats.map((f, idx) => {
                     const pct = fieldTotal > 0 ? ((f.total_kg / fieldTotal) * 100).toFixed(1) : '0'
@@ -438,6 +453,7 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
+
               </div>
             )}
           </div>
@@ -537,8 +553,6 @@ export default function Dashboard() {
         ) : filteredDailyStats.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">No data for this range</div>
         ) : (
-          // FIX: overflow-y-auto on the outer wrapper so both panels share
-          // the same vertical scroll. Right panel keeps overflow-x-auto only.
           <div className={`flex ${dailyMaximized ? 'flex-1 overflow-y-auto min-h-0' : ''}`}>
 
             {/* frozen left panel */}
