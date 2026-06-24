@@ -171,11 +171,12 @@ export const bulkScan = (data: BulkScanRequest) =>
 
 // ── entry listing ──────────────────────────────────────────────────────
 
-export const getEntries = (page = 1, pageSize = 25, search = '') => {
+export const getEntries = (page = 1, pageSize = 25, pickerPrefix = '', boxPrefix = '') => {
   const params = new URLSearchParams()
   params.append('page',      String(page))
   params.append('page_size', String(pageSize))
-  if (search) params.append('search', search)
+  if (pickerPrefix) params.append('picker_prefix', pickerPrefix)
+  if (boxPrefix)    params.append('box_prefix',    boxPrefix)
   return api.get<PaginatedEntries>(`/harvest/entries?${params}`).then(r => r.data)
 }
 

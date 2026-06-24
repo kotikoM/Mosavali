@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,54 +14,39 @@ router = APIRouter(prefix="/harvest", tags=["harvest-entries"])
 
 @router.get("/entries")
 async def get_entries(
-    page:      int        = Query(1, ge=1),
-    page_size: int        = Query(25, ge=1, le=100),
-    search:    str | None = Query(None),
-    db:        AsyncSession = Depends(get_db),
+    page:          int        = Query(1, ge=1),
+    page_size:     int        = Query(25, ge=1, le=100),
+    picker_prefix: str | None = Query(None),
+    box_prefix:    str | None = Query(None),
+    db:            AsyncSession = Depends(get_db),
 ):
     offset = (page - 1) * page_size
 
-    # ── Build filters ─────────────────────────────────────────────
+    # ── Build filters ──────────────────────────────────────────────
     filters = []
-    if search:
-        s = search.strip()
-        if '-' in s:
-            left, right = s.split('-', 1)
-            left, right = left.strip(), right.strip()
-            try:
-                if left and right:
-                    filters.append(
-                        (HarvestEntry.picker_id  == int(left)) &
-                        (HarvestEntry.box_number == int(right))
-                    )
-                elif left:
-                    filters.append(HarvestEntry.picker_id  == int(left))
-                elif right:
-                    filters.append(HarvestEntry.box_number == int(right))
-            except ValueError:
-                pass
-        else:
-            try:
-                num = int(s)
-                filters.append(
-                    (HarvestEntry.picker_id  == num) |
-                    (HarvestEntry.box_number == num)
-                )
-            except ValueError:
-                pass
 
-    # ── Count ─────────────────────────────────────────────────────
+    if picker_prefix:
+        p = picker_prefix.strip().zfill(1)   # keep as-is, lpad handles padding
+        padded = func.lpad(cast(HarvestEntry.picker_id, String), 4, '0')
+        filters.append(padded.like(f'{p}%'))
+
+    if box_prefix:
+        p = box_prefix.strip()
+        padded = func.lpad(cast(HarvestEntry.box_number, String), 4, '0')
+        filters.append(padded.like(f'{p}%'))
+
+    # ── Count ──────────────────────────────────────────────────────
     count_q = select(func.count()).select_from(HarvestEntry)
     for f in filters:
         count_q = count_q.where(f)
     total = (await db.execute(count_q)).scalar_one()
 
-    # ── Data with joins ───────────────────────────────────────────
+    # ── Data with joins ────────────────────────────────────────────
     data_q = (
         select(HarvestEntry, Picker, Box, Field)
-        .join(Picker, HarvestEntry.picker_id  == Picker.picker_id)
-        .join(Box,    HarvestEntry.box_type_id == Box.box_id)
-        .join(Field, HarvestEntry.field_id == Field.field_id)
+        .join(Picker, HarvestEntry.picker_id   == Picker.picker_id)
+        .join(Box,    HarvestEntry.box_type_id  == Box.box_id)
+        .join(Field,  HarvestEntry.field_id     == Field.field_id)
         .order_by(HarvestEntry.scanned_at.desc())
     )
     for f in filters:

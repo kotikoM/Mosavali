@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from '@tanstack/react-table'
+import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import type { ColumnDef } from '@tanstack/react-table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
@@ -47,17 +47,6 @@ function isComplete(barcode: string): boolean {
   return /^\d{4}-\d{4}$/.test(barcode)
 }
 
-function buildEntriesSearch(picker: string, box: string): string {
-  const p = picker.trim()
-  const b = box.trim()
-  if (!p && !b) return ''
-  const pp = p ? p.padStart(4, '0') : ''
-  const bb = b ? b.padStart(4, '0') : ''
-  if (pp && bb) return `${pp}-${bb}`
-  if (pp)       return pp
-  return `-${bb}`
-}
-
 // ── sub-components ─────────────────────────────────────────────────────
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -94,7 +83,7 @@ export default function Scanning() {
   const pendingBarcodes       = useRef<Set<string>>(new Set())
   const today                 = fmtDate(new Date())
 
-  // ── session state ────────────────────────────────────────────────
+  // ── session state ─────────────────────────────────────────────────
   const [sessionActive, setSessionActive] = useState(false)
   const [harvestDate, setHarvestDate]     = useState(() => fmtDate(new Date()))
   const [boxTypeId, setBoxTypeId]         = useState<number | null>(null)
@@ -103,42 +92,49 @@ export default function Scanning() {
   const [input, setInput]                 = useState('')
   const [errorPopup, setErrorPopup]       = useState<BarcodeCheckResponse | null>(null)
 
-  // ── idle page state ──────────────────────────────────────────────
+  // ── idle page state ───────────────────────────────────────────────
   const [fromDate, setFromDate]               = useState(fmtDate(subDays(new Date(), 9)))
   const [toDate, setToDate]                   = useState(fmtDate(new Date()))
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
   const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
   const [pickerIdInput, setPickerIdInput]     = useState('')
   const [boxNumInput, setBoxNumInput]         = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [entriesPage, setEntriesPage]         = useState(1)
   const [exportingDetail, setExportingDetail] = useState(false)
 
-  // ── debounce search ──────────────────────────────────────────────
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setDebouncedSearch(buildEntriesSearch(pickerIdInput, boxNumInput))
-    }, 300)
-    return () => clearTimeout(t)
-  }, [pickerIdInput, boxNumInput])
+  const [debouncedPicker, setDebouncedPicker] = useState('')
+  const [debouncedBox,    setDebouncedBox]    = useState('')
 
-  useEffect(() => { setEntriesPage(1) }, [debouncedSearch])
+    // replace the single debounce useEffect with two
+    useEffect(() => {
+      const t = setTimeout(() => setDebouncedPicker(pickerIdInput.replace(/\D/g, '')), 300)
+      return () => clearTimeout(t)
+    }, [pickerIdInput])
 
-  // ── queries ──────────────────────────────────────────────────────
+    useEffect(() => {
+      const t = setTimeout(() => setDebouncedBox(boxNumInput.replace(/\D/g, '')), 300)
+      return () => clearTimeout(t)
+    }, [boxNumInput])
+
+    // update the reset-page effect
+    useEffect(() => { setEntriesPage(1) }, [debouncedPicker, debouncedBox])
+
+    // update the entries query
+    const { data: entriesData, isLoading: entriesLoading } = useQuery({
+      queryKey: ['harvest', entriesPage, debouncedPicker, debouncedBox],
+      queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedPicker, debouncedBox),
+    })
+
+  // ── queries ───────────────────────────────────────────────────────
   const { data: boxes  = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
-
-  const { data: entriesData, isLoading: entriesLoading } = useQuery({
-    queryKey: ['harvest', entriesPage, debouncedSearch],
-    queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedSearch),
-  })
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['harvest-stats', fromDate, toDate],
     queryFn:  () => getDailyStats(fromDate, toDate),
   })
 
-  // ── derived values ───────────────────────────────────────────────
+  // ── derived values ────────────────────────────────────────────────
   const entries      = entriesData?.items ?? []
   const entriesTotal = entriesData?.total ?? 0
   const entriesPages = entriesData?.pages ?? 1
@@ -162,7 +158,7 @@ export default function Scanning() {
     })
   }, [statsData, fromDate, toDate, boxes])
 
-  // ── export ───────────────────────────────────────────────────────
+  // ── export ────────────────────────────────────────────────────────
   const handleExportDetail = async () => {
     if (exportingDetail) return
     setExportingDetail(true)
@@ -174,7 +170,7 @@ export default function Scanning() {
     }
   }
 
-  // ── session handlers ─────────────────────────────────────────────
+  // ── session handlers ──────────────────────────────────────────────
   useEffect(() => {
     if (sessionActive) setTimeout(() => inputRef.current?.focus(), 100)
   }, [sessionActive])
@@ -202,18 +198,13 @@ export default function Scanning() {
 
   const submitBarcode = useCallback(async (barcode: string) => {
     if (!barcode || !isComplete(barcode)) return
-
-    // already committed in queue
     if (queue.some(q => q.barcode === barcode)) {
       playError()
       setErrorPopup({ barcode, valid: false, reason: 'already_scanned', scanned_at: null })
       return
     }
-
-    // race condition guard — barcode already being verified right now
     if (pendingBarcodes.current.has(barcode)) return
     pendingBarcodes.current.add(barcode)
-
     try {
       const result = await checkBarcode(barcode)
       if (!result.valid) {
@@ -222,7 +213,6 @@ export default function Scanning() {
         return
       }
       setQueue(prev => {
-        // double-check after async gap — another scan may have landed
         if (prev.some(q => q.barcode === barcode)) return prev
         return [...prev, { id: crypto.randomUUID(), barcode, status: 'valid', reason: null }]
       })
@@ -263,7 +253,7 @@ export default function Scanning() {
     onError: () => addToast('Failed to commit batch', 'error'),
   })
 
-  // ── table columns ────────────────────────────────────────────────
+  // ── table columns ─────────────────────────────────────────────────
   const entryColumns: ColumnDef<HarvestEntry>[] = [
     {
       header: 'Barcode', id: 'barcode',
@@ -311,121 +301,136 @@ export default function Scanning() {
   const entryTable = useReactTable({
     data:                entries,
     columns:             entryColumns,
-    state:               { globalFilter: debouncedSearch },
     getCoreRowModel:     getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
   })
 
-  // ── idle page ────────────────────────────────────────────────────
+  // ── idle page ─────────────────────────────────────────────────────
   if (!sessionActive) {
     return (
       <div className="flex flex-col gap-6">
 
         <h1 className="text-3xl font-bold text-neutral-800">Scanning</h1>
 
-        {/* Top row */}
-        <div className="grid grid-cols-3 gap-4">
-          <button
-            onClick={() => setSessionActive(true)}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-white/20 hover:border-white/50 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-              <ScanBarcode size={28} className="text-white" strokeWidth={2.5} />
-            </div>
-            <p className="text-base font-black text-white uppercase tracking-widest">Start Scanning</p>
-          </button>
+        {/* ── ABOVE-FOLD: buttons + velocity ── fills viewport exactly */}
+        <div className="flex flex-col gap-6" style={{ height: 'calc(100vh - 7rem)' }}>
 
-          <button
-            onClick={() => setFieldDialogOpen(true)}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
-              <Rows3 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
-            </div>
-            <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Fields</p>
-          </button>
-
-          <button
-            onClick={() => setBoxDialogOpen(true)}
-            className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
-          >
-            <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
-              <Package2 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
-            </div>
-            <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
-          </button>
-        </div>
-
-        {/* Bar chart */}
-        <div className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden">
-          <div className="px-6 py-5 border-b-2 border-neutral-100 flex items-center gap-6">
-            <div className="shrink-0">
-              <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
-              <p className="text-sm text-neutral-400">Boxes scanned per day by box type</p>
-            </div>
-            <div className="w-px h-12 bg-neutral-200 shrink-0" />
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
-                <DatePicker value={fromDate} onChange={setFromDate} />
+          {/* Action buttons row */}
+          <div className="grid grid-cols-3 gap-4 shrink-0">
+            <button
+              onClick={() => setSessionActive(true)}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-white/20 hover:border-white/50 bg-primary-700 shadow-lg hover:bg-primary transition-colors"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                <ScanBarcode size={28} className="text-white" strokeWidth={2.5} />
               </div>
-              <div className="text-neutral-300 font-bold mt-4">→</div>
-              <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">To</label>
-                <DatePicker value={toDate} onChange={setToDate} />
+              <p className="text-base font-black text-white uppercase tracking-widest">Start Scanning</p>
+            </button>
+
+            <button
+              onClick={() => setFieldDialogOpen(true)}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
+                <Rows3 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
               </div>
-            </div>
+              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Fields</p>
+            </button>
+
+            <button
+              onClick={() => setBoxDialogOpen(true)}
+              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-neutral-200 bg-white shadow-lg hover:border-primary hover:bg-primary-50 transition-colors group"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-neutral-100 group-hover:bg-primary-100 flex items-center justify-center transition-colors">
+                <Package2 size={26} className="text-neutral-500 group-hover:text-primary-700 transition-colors" strokeWidth={2} />
+              </div>
+              <p className="text-sm font-black text-neutral-700 group-hover:text-primary-800 uppercase tracking-widest transition-colors">Manage Box Types</p>
+            </button>
           </div>
 
-          <div className="p-6">
-            {statsLoading ? (
-              <div className="flex items-center justify-center h-64 text-neutral-400 text-sm">Loading...</div>
-            ) : barData.every(d => d.total === 0) ? (
-              <div className="flex flex-col items-center justify-center h-64 gap-3">
-                <BarChart2 size={36} className="text-neutral-200" />
-                <p className="text-neutral-400 text-sm">No data for this range</p>
+          {/* Scanning Velocity — expands to fill remaining height */}
+          <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden flex flex-col">
+
+            {/* chart header */}
+            <div className="px-6 py-5 border-b-2 border-neutral-100 flex items-center gap-6 shrink-0">
+              <div className="shrink-0">
+                <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
+                <p className="text-sm text-neutral-400">Boxes scanned per day by box type</p>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={barData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8E9197', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#8E9197', fontWeight: 600 }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f5f5f6' }} />
-                  {boxes.length > 0 ? (
-                    boxes.map((box, idx) => (
-                      <Bar
-                        key={box.box_id}
-                        dataKey={box.name}
-                        stackId="a"
-                        fill={BOX_COLORS[idx % BOX_COLORS.length]}
-                        radius={idx === boxes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                        isAnimationActive
-                        animationBegin={idx * 80}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                    ))
-                  ) : (
-                    <Bar dataKey="total" fill="#2D5A27" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {boxes.length > 0 && !statsLoading && (
-              <div className="flex items-center gap-4 mt-4 flex-wrap">
-                {boxes.map((box, idx) => (
-                  <div key={box.box_id} className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: BOX_COLORS[idx % BOX_COLORS.length] }} />
-                    <span className="text-xs font-medium text-neutral-500">{box.name}</span>
+              <div className="w-px h-12 bg-neutral-200 shrink-0" />
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">From</label>
+                  <DatePicker value={fromDate} onChange={setFromDate} />
+                </div>
+                <div className="text-neutral-300 font-bold mt-4">→</div>
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">To</label>
+                  <DatePicker value={toDate} onChange={setToDate} />
+                </div>
+              </div>
+            </div>
+
+            {/* chart body — flex-1 so it fills the card */}
+            <div className="flex-1 min-h-0 flex flex-col p-6">
+              {statsLoading ? (
+                <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
+                  Loading...
+                </div>
+              ) : barData.every(d => d.total === 0) ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                  <BarChart2 size={36} className="text-neutral-200" />
+                  <p className="text-neutral-400 text-sm">No data for this range</p>
+                </div>
+              ) : (
+                <>
+                  {/* ResponsiveContainer stretches into flex-1 */}
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8E9197', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: '#8E9197', fontWeight: 600 }} axisLine={false} tickLine={false} width={32} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f5f5f6' }} />
+                        {boxes.length > 0 ? (
+                          boxes.map((box, idx) => (
+                            <Bar
+                              key={box.box_id}
+                              dataKey={box.name}
+                              stackId="a"
+                              fill={BOX_COLORS[idx % BOX_COLORS.length]}
+                              radius={idx === boxes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                              isAnimationActive
+                              animationBegin={idx * 80}
+                              animationDuration={800}
+                              animationEasing="ease-out"
+                            />
+                          ))
+                        ) : (
+                          <Bar dataKey="total" fill="#2D5A27" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+                        )}
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* legend — pinned to bottom of chart body */}
+                  {boxes.length > 0 && (
+                    <div className="flex items-center gap-4 pt-4 flex-wrap shrink-0">
+                      {boxes.map((box, idx) => (
+                        <div key={box.box_id} className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: BOX_COLORS[idx % BOX_COLORS.length] }} />
+                          <span className="text-xs font-medium text-neutral-500">{box.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
           </div>
         </div>
 
-        {/* Entries table */}
+        {/* ── BELOW FOLD: entries table ── */}
         <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
           <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100">
             <div className="shrink-0">
@@ -437,7 +442,7 @@ export default function Scanning() {
 
             <div className="flex items-center gap-1">
               <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker ID</label>
+                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest w-20 block">Picker ID</label>
                 <div className="relative">
                   <input
                     value={pickerIdInput}
@@ -456,7 +461,7 @@ export default function Scanning() {
               <span className="text-neutral-300 font-bold mt-5">—</span>
 
               <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Box No.</label>
+                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest w-20 block">Box No.</label>
                 <div className="relative">
                   <input
                     value={boxNumInput}
@@ -576,7 +581,7 @@ export default function Scanning() {
     )
   }
 
-  // ── active session ───────────────────────────────────────────────
+  // ── active session ────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-neutral-100 z-40 flex flex-col overflow-hidden">
 
