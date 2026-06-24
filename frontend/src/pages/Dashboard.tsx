@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, eachDayOfInterval } from 'date-fns'
 import {
@@ -40,6 +41,8 @@ function buildPieColors(baseHex: string, count: number): string[] {
   })
 }
 
+// ── breakdown dropdown — portal-based to escape overflow-hidden ancestors ──
+
 interface BreakdownDropdownProps {
   open:     boolean
   onToggle: () => void
@@ -47,11 +50,28 @@ interface BreakdownDropdownProps {
 }
 
 function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
+  const btnRef                    = useRef<HTMLButtonElement>(null)
+  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({})
+
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect       = btnRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      if (spaceBelow >= 200) {
+        setPopupStyle({ position: 'fixed', top: rect.bottom + 8, left: rect.left, zIndex: 9999 })
+      } else {
+        setPopupStyle({ position: 'fixed', bottom: window.innerHeight - rect.top + 8, left: rect.left, zIndex: 9999 })
+      }
+    }
+    onToggle()
+  }
+
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onMouseDown={e => e.stopPropagation()}
-        onClick={e => { e.stopPropagation(); onToggle() }}
+        onClick={e => { e.stopPropagation(); handleToggle() }}
         className={`p-1.5 rounded-lg transition-colors ${
           open
             ? 'bg-primary-100 text-primary-700'
@@ -65,10 +85,11 @@ function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
         />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           onMouseDown={e => e.stopPropagation()}
-          className="absolute top-full left-0 mt-2 z-50 bg-white border-2 border-neutral-200 rounded-xl shadow-xl p-3 min-w-48"
+          style={popupStyle}
+          className="bg-white border-2 border-neutral-200 rounded-xl shadow-xl p-3 min-w-48"
         >
           <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
             Breakdown
@@ -82,7 +103,8 @@ function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
               <span className="font-mono text-xs font-bold text-neutral-800">{count.toLocaleString()}</span>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -291,14 +313,14 @@ export default function Dashboard() {
         <div className="flex-1 min-h-0 flex overflow-hidden">
 
           {/* left: 3 stats */}
-          <div className="flex flex-col border-r-2 border-neutral-100 overflow-hidden" style={{ flex: '0 0 66.667%' }}>
+          <div className="flex flex-col border-r-2 border-neutral-100 overflow-hidden" style={{ flex: '0 0 50%' }}>
 
             {/* PICKERS ACTIVE */}
             <div className="flex-1 flex flex-col justify-between px-10 py-6 border-b border-neutral-100 min-h-0">
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Pickers Active
               </span>
-              <div className="flex items-baseline gap-3 min-w-0 overflow-hidden">
+              <div className="flex items-baseline gap-3 min-w-0">
                 <span
                   className="font-mono font-black text-neutral-900 leading-none shrink-0"
                   style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
@@ -321,7 +343,7 @@ export default function Dashboard() {
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Boxes Scanned
               </span>
-              <div className="flex items-baseline gap-3 min-w-0 overflow-hidden">
+              <div className="flex items-baseline gap-3 min-w-0">
                 <span
                   className="font-mono font-black text-primary-800 leading-none shrink-0"
                   style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
@@ -345,7 +367,7 @@ export default function Dashboard() {
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] shrink-0">
                 Harvested
               </span>
-              <div className="flex items-baseline gap-4 min-w-0 overflow-hidden">
+              <div className="flex items-baseline gap-4 min-w-0">
                 <span
                   className="font-mono font-black text-neutral-900 leading-none shrink-0"
                   style={{ fontSize: 'clamp(2rem, 9vh, 100px)', letterSpacing: '-5px' }}
@@ -388,13 +410,9 @@ export default function Dashboard() {
             ) : (
               <div className="flex flex-col items-center gap-6">
 
-                {/* donut — width and height both clamp so it shrinks at high zoom */}
                 <div
                   className="shrink-0 w-full"
-                  style={{
-                    maxWidth:  'min(220px, 100%)',
-                    height:    'min(220px, 30vh)',
-                  }}
+                  style={{ maxWidth: 'min(220px, 100%)', height: 'min(220px, 30vh)' }}
                 >
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -426,7 +444,6 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* legend */}
                 <div className="w-full flex flex-col gap-3">
                   {fieldStats.map((f, idx) => {
                     const pct = fieldTotal > 0 ? ((f.total_kg / fieldTotal) * 100).toFixed(1) : '0'
