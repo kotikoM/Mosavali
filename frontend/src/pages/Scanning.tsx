@@ -4,11 +4,11 @@ import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-tabl
 import type { ColumnDef } from '@tanstack/react-table'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, subDays, eachDayOfInterval, parseISO } from 'date-fns'
-import { ScanBarcode, X, Trash2, CheckCircle, ChevronRight, Box, BarChart2, Rows3, Package2, ChevronLeft, FileDown } from 'lucide-react'
-import { checkBarcode, bulkScan, getEntries, getDailyStats, getPickerDetailExport } from '../api/harvest'
+import { ScanBarcode, X, Trash2, CheckCircle, ChevronRight, BarChart2, Rows3, Package2, ChevronLeft, FileDown, Search } from 'lucide-react'
+import { checkBarcode, bulkScan, getEntries, getDailyStats, getPickerDetailExport, getPickerNames } from '../api/harvest'
 import { getBoxes } from '../api/boxes'
 import { getFields } from '../api/fields'
-import type { HarvestEntry, BarcodeCheckResponse } from '../api/harvest'
+import type { HarvestEntry, BarcodeCheckResponse, PickerName } from '../api/harvest'
 import { useErrorSound } from '../hooks/useErrorSound'
 import { useToast } from '../hooks/useToast'
 import { useSound } from '../hooks/useSound'
@@ -47,6 +47,10 @@ function isComplete(barcode: string): boolean {
   return /^\d{4}-\d{4}$/.test(barcode)
 }
 
+function fmtPickerId(id: number): string {
+  return `#${String(id).padStart(4, '0')}`
+}
+
 // ── sub-components ─────────────────────────────────────────────────────
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -71,6 +75,135 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
+// ── picker combobox ────────────────────────────────────────────────────
+
+interface PickerComboboxProps {
+  options:  PickerName[]
+  selected: PickerName | null
+  onSelect: (p: PickerName | null) => void
+}
+
+function PickerCombobox({ options, selected, onSelect }: PickerComboboxProps) {
+  const [query,    setQuery]    = useState('')
+  const [isOpen,   setIsOpen]   = useState(false)
+  const containerRef            = useRef<HTMLDivElement>(null)
+  const inputRef                = useRef<HTMLInputElement>(null)
+
+  // close on outside click
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setIsOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    const pool = q
+      ? options.filter(p => {
+          const surnameFirst = `${p.last_name} ${p.first_name}`.toLowerCase()
+          const firstSurname = `${p.first_name} ${p.last_name}`.toLowerCase()
+          const idStr        = String(p.picker_id).padStart(4, '0')
+          return surnameFirst.includes(q) || firstSurname.includes(q) || idStr.includes(q)
+        })
+      : options
+    return pool.slice(0, 12)
+  }, [options, query])
+
+  const handleSelect = (p: PickerName) => {
+    onSelect(p)
+    setQuery('')
+    setIsOpen(false)
+  }
+
+  const handleClear = () => {
+    onSelect(null)
+    setQuery('')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  return (
+    <div ref={containerRef} className="flex flex-col gap-0.5 shrink-0">
+      <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Picker</label>
+
+      {selected ? (
+        // ── selected chip ──────────────────────────────────────────────
+        <div className="flex items-center gap-2 pl-3 pr-2 py-2 rounded-xl border-2 border-primary-300 bg-primary-50 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm font-semibold text-primary-900 truncate">
+              {selected.last_name} {selected.first_name}
+            </span>
+            <span className="font-mono text-xs font-bold text-primary-400 shrink-0">
+              {fmtPickerId(selected.picker_id)}
+            </span>
+          </div>
+          <button
+            onClick={handleClear}
+            className="shrink-0 text-primary-400 hover:text-primary-700 hover:bg-primary-100 rounded-lg p-0.5 transition-colors"
+          >
+            <X size={13} strokeWidth={2.5} />
+          </button>
+        </div>
+      ) : (
+        // ── search input ───────────────────────────────────────────────
+        <div className="relative">
+          <Search
+            size={14}
+            strokeWidth={2.5}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
+          />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => { setQuery(e.target.value); setIsOpen(true) }}
+            onFocus={() => setIsOpen(true)}
+            onKeyDown={e => { if (e.key === 'Escape') setIsOpen(false) }}
+            placeholder="Name or #ID"
+            className="w-40 rounded-xl border-2 border-neutral-200 bg-neutral-50 pl-8 pr-8 py-2.5 text-sm outline-none transition-all focus:border-primary focus:bg-white"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* dropdown */}
+      {isOpen && !selected && filtered.length > 0 && (
+        <div className="absolute mt-1 z-50 bg-white border-2 border-neutral-200 rounded-xl shadow-xl overflow-hidden"
+          style={{ top: '100%', left: 0, minWidth: '16rem', maxHeight: '15rem', overflowY: 'auto' }}
+        >
+          {!query.trim() && (
+            <p className="px-4 py-2 text-[10px] font-bold text-neutral-400 uppercase tracking-widest border-b border-neutral-50">
+              All pickers
+            </p>
+          )}
+          {filtered.map(p => (
+            <button
+              key={p.picker_id}
+              onMouseDown={e => e.preventDefault()}   // prevent input blur before click
+              onClick={() => handleSelect(p)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary-50 transition-colors text-left border-b border-neutral-50 last:border-0"
+            >
+              <span className="font-mono text-xs font-bold text-neutral-400 shrink-0 w-12">
+                {fmtPickerId(p.picker_id)}
+              </span>
+              <span className="text-sm font-semibold text-neutral-800">
+                {p.last_name} {p.first_name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── main component ─────────────────────────────────────────────────────
 
 export default function Scanning() {
@@ -81,7 +214,6 @@ export default function Scanning() {
   const { play: playSuccess } = useSound()
   const inputRef              = useRef<HTMLInputElement>(null)
   const pendingBarcodes       = useRef<Set<string>>(new Set())
-  const today                 = fmtDate(new Date())
 
   // ── session state ─────────────────────────────────────────────────
   const [sessionActive, setSessionActive] = useState(false)
@@ -97,37 +229,33 @@ export default function Scanning() {
   const [toDate, setToDate]                   = useState(fmtDate(new Date()))
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false)
   const [boxDialogOpen, setBoxDialogOpen]     = useState(false)
-  const [pickerIdInput, setPickerIdInput]     = useState('')
   const [boxNumInput, setBoxNumInput]         = useState('')
+  const [debouncedBox, setDebouncedBox]       = useState('')
+  const [selectedPicker, setSelectedPicker]   = useState<PickerName | null>(null)
   const [entriesPage, setEntriesPage]         = useState(1)
   const [exportingDetail, setExportingDetail] = useState(false)
 
-  const [debouncedPicker, setDebouncedPicker] = useState('')
-  const [debouncedBox,    setDebouncedBox]    = useState('')
+  // ── debounce box search ───────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBox(boxNumInput.replace(/\D/g, '')), 300)
+    return () => clearTimeout(t)
+  }, [boxNumInput])
 
-    // replace the single debounce useEffect with two
-    useEffect(() => {
-      const t = setTimeout(() => setDebouncedPicker(pickerIdInput.replace(/\D/g, '')), 300)
-      return () => clearTimeout(t)
-    }, [pickerIdInput])
-
-    useEffect(() => {
-      const t = setTimeout(() => setDebouncedBox(boxNumInput.replace(/\D/g, '')), 300)
-      return () => clearTimeout(t)
-    }, [boxNumInput])
-
-    // update the reset-page effect
-    useEffect(() => { setEntriesPage(1) }, [debouncedPicker, debouncedBox])
-
-    // update the entries query
-    const { data: entriesData, isLoading: entriesLoading } = useQuery({
-      queryKey: ['harvest', entriesPage, debouncedPicker, debouncedBox],
-      queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedPicker, debouncedBox),
-    })
+  useEffect(() => { setEntriesPage(1) }, [debouncedBox, selectedPicker])
 
   // ── queries ───────────────────────────────────────────────────────
   const { data: boxes  = [] } = useQuery({ queryKey: ['boxes'],  queryFn: getBoxes })
   const { data: fields = [] } = useQuery({ queryKey: ['fields'], queryFn: getFields })
+
+  const { data: pickerOptions = [] } = useQuery({
+    queryKey: ['picker-names'],
+    queryFn:  getPickerNames,
+  })
+
+  const { data: entriesData, isLoading: entriesLoading } = useQuery({
+    queryKey: ['harvest', entriesPage, debouncedBox, selectedPicker?.picker_id],
+    queryFn:  () => getEntries(entriesPage, PAGE_SIZE, debouncedBox, selectedPicker?.picker_id),
+  })
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['harvest-stats', fromDate, toDate],
@@ -139,7 +267,7 @@ export default function Scanning() {
   const entriesTotal = entriesData?.total ?? 0
   const entriesPages = entriesData?.pages ?? 1
   const validCount   = queue.filter(q => q.status === 'valid').length
-  const hasSearch    = pickerIdInput.trim() !== '' || boxNumInput.trim() !== ''
+  const hasSearch    = selectedPicker !== null || boxNumInput.trim() !== ''
 
   const barData = useMemo(() => {
     if (!statsData) return []
@@ -266,7 +394,7 @@ export default function Scanning() {
       cell: info => (
         <div>
           <span className="font-semibold text-neutral-800 block">{info.getValue<string>()}</span>
-          <span className="font-mono text-xs text-neutral-400">#{info.row.original.picker_id}</span>
+          <span className="font-mono text-xs text-neutral-400">{fmtPickerId(info.row.original.picker_id)}</span>
         </div>
       ),
     },
@@ -299,9 +427,9 @@ export default function Scanning() {
   ]
 
   const entryTable = useReactTable({
-    data:                entries,
-    columns:             entryColumns,
-    getCoreRowModel:     getCoreRowModel(),
+    data:            entries,
+    columns:         entryColumns,
+    getCoreRowModel: getCoreRowModel(),
   })
 
   // ── idle page ─────────────────────────────────────────────────────
@@ -347,10 +475,8 @@ export default function Scanning() {
             </button>
           </div>
 
-          {/* Scanning Velocity — expands to fill remaining height */}
+          {/* Scanning Velocity */}
           <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden flex flex-col">
-
-            {/* chart header */}
             <div className="px-6 py-5 border-b-2 border-neutral-100 flex items-center gap-6 shrink-0">
               <div className="shrink-0">
                 <p className="text-xl font-bold text-neutral-900">Scanning Velocity</p>
@@ -370,12 +496,9 @@ export default function Scanning() {
               </div>
             </div>
 
-            {/* chart body — flex-1 so it fills the card */}
             <div className="flex-1 min-h-0 flex flex-col p-6">
               {statsLoading ? (
-                <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
-                  Loading...
-                </div>
+                <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">Loading...</div>
               ) : barData.every(d => d.total === 0) ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-3">
                   <BarChart2 size={36} className="text-neutral-200" />
@@ -383,7 +506,6 @@ export default function Scanning() {
                 </div>
               ) : (
                 <>
-                  {/* ResponsiveContainer stretches into flex-1 */}
                   <div className="flex-1 min-h-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={barData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
@@ -411,8 +533,6 @@ export default function Scanning() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-
-                  {/* legend — pinned to bottom of chart body */}
                   {boxes.length > 0 && (
                     <div className="flex items-center gap-4 pt-4 flex-wrap shrink-0">
                       {boxes.map((box, idx) => (
@@ -426,13 +546,12 @@ export default function Scanning() {
                 </>
               )}
             </div>
-
           </div>
         </div>
 
         {/* ── BELOW FOLD: entries table ── */}
         <div className="overflow-hidden rounded-2xl border-2 border-neutral-200 bg-white shadow-lg">
-          <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100">
+          <div className="flex items-center gap-6 px-6 py-5 border-b-2 border-neutral-100 flex-wrap gap-y-4">
             <div className="shrink-0">
               <p className="text-xl font-bold text-neutral-900">All Harvest Entries</p>
               <p className="text-sm text-neutral-400">{entriesTotal.toLocaleString()} total entries</p>
@@ -440,47 +559,38 @@ export default function Scanning() {
 
             <div className="w-px h-12 bg-neutral-200 shrink-0" />
 
-            <div className="flex items-center gap-1">
-              <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest w-20 block">Picker ID</label>
-                <div className="relative">
-                  <input
-                    value={pickerIdInput}
-                    onChange={e => setPickerIdInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="0007"
-                    className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
-                  />
-                  {pickerIdInput && (
-                    <button onClick={() => setPickerIdInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
+            {/* picker combobox — wraps in relative for dropdown positioning */}
+            <div className="relative shrink-0">
+              <PickerCombobox
+                options={pickerOptions}
+                selected={selectedPicker}
+                onSelect={p => { setSelectedPicker(p); setEntriesPage(1) }}
+              />
+            </div>
 
-              <span className="text-neutral-300 font-bold mt-5">—</span>
+            <span className="text-neutral-300 font-bold mt-5">—</span>
 
-              <div className="flex flex-col gap-0.5">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest w-20 block">Box No.</label>
-                <div className="relative">
-                  <input
-                    value={boxNumInput}
-                    onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="0013"
-                    className="w-28 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
-                  />
-                  {boxNumInput && (
-                    <button onClick={() => setBoxNumInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
+            {/* box number search */}
+            <div className="flex flex-col gap-0.5 shrink-0">
+              <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest w-20 block">Box No.</label>
+              <div className="relative">
+                <input
+                  value={boxNumInput}
+                  onChange={e => setBoxNumInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="XXXX"
+                  className="w-40 rounded-xl border-2 border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm font-mono outline-none transition-all focus:border-primary focus:bg-white tracking-wider pr-8"
+                />
+                {boxNumInput && (
+                  <button onClick={() => setBoxNumInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 hover:text-neutral-500">
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="w-px h-12 bg-neutral-200 shrink-0" />
 
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0.5 shrink-0">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Export</label>
               <button
                 onClick={handleExportDetail}
@@ -585,17 +695,14 @@ export default function Scanning() {
   return (
     <div className="fixed inset-0 bg-neutral-100 z-40 flex flex-col overflow-hidden">
 
-      {/* Top bar */}
       <div className="flex items-center px-8 py-5 bg-white border-b border-neutral-100 shadow-sm gap-8">
         <p className="text-3xl font-black text-neutral-900 shrink-0">Active Scan Session</p>
         <div className="w-px h-10 bg-neutral-200 shrink-0" />
         <div className="flex items-center gap-6">
-
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Harvest Date</label>
             <DatePicker value={harvestDate} onChange={setHarvestDate} />
           </div>
-
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
               Field
@@ -611,7 +718,6 @@ export default function Scanning() {
               {fields.map(f => <option key={f.field_id} value={f.field_id}>{f.field_name}</option>)}
             </select>
           </div>
-
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
               Box Type
@@ -627,16 +733,12 @@ export default function Scanning() {
               {boxes.map(b => <option key={b.box_id} value={b.box_id}>{b.name} — {b.net_weight_kg} kg net</option>)}
             </select>
           </div>
-
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Left */}
         <div className="flex-1 flex flex-col gap-4 p-6 overflow-hidden">
           <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col gap-4 flex-1">
-
             <div className="flex-[2] relative border-2 border-neutral-200 rounded-2xl bg-neutral-50 focus-within:border-primary transition-colors">
               <input
                 ref={inputRef}
@@ -658,7 +760,6 @@ export default function Scanning() {
                 </button>
               )}
             </div>
-
             <button
               onClick={() => submitBarcode(input)}
               disabled={!isComplete(input)}
@@ -688,18 +789,15 @@ export default function Scanning() {
           </div>
         </div>
 
-        {/* Right */}
         <div className="w-80 shrink-0 flex flex-col py-6 pr-6">
           <div className="flex-1 bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
             <div className="bg-primary-700 py-8 flex flex-col items-center justify-center shrink-0">
               <span className="text-[5rem] font-black text-white tracking-tight leading-none">{validCount}</span>
               <span className="text-primary-300 text-xs font-bold uppercase tracking-[0.2em] mt-3">Total Scanned</span>
             </div>
-
             <div className="px-5 py-3 border-b border-neutral-100 shrink-0">
               <p className="text-xs font-black uppercase tracking-widest text-neutral-400">Queue</p>
             </div>
-
             <div className="flex-1 overflow-y-auto">
               {queue.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 gap-2">
@@ -733,7 +831,6 @@ export default function Scanning() {
         error={errorPopup}
         onClose={() => { setErrorPopup(null); inputRef.current?.focus() }}
       />
-
       <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   )

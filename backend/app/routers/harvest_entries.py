@@ -14,24 +14,21 @@ router = APIRouter(prefix="/harvest", tags=["harvest-entries"])
 
 @router.get("/entries")
 async def get_entries(
-    page:          int        = Query(1, ge=1),
-    page_size:     int        = Query(25, ge=1, le=100),
-    picker_prefix: str | None = Query(None),
-    box_prefix:    str | None = Query(None),
-    db:            AsyncSession = Depends(get_db),
+    page:      int        = Query(1, ge=1),
+    page_size: int        = Query(25, ge=1, le=100),
+    picker_id: int | None = Query(None),
+    box_prefix: str | None = Query(None),
+    db:        AsyncSession = Depends(get_db),
 ):
     offset = (page - 1) * page_size
 
-    # ── Build filters ──────────────────────────────────────────────
     filters = []
 
-    if picker_prefix:
-        p = picker_prefix.strip().zfill(1)   # keep as-is, lpad handles padding
-        padded = func.lpad(cast(HarvestEntry.picker_id, String), 4, '0')
-        filters.append(padded.like(f'{p}%'))
+    if picker_id is not None:
+        filters.append(HarvestEntry.picker_id == picker_id)
 
     if box_prefix:
-        p = box_prefix.strip()
+        p      = box_prefix.strip()
         padded = func.lpad(cast(HarvestEntry.box_number, String), 4, '0')
         filters.append(padded.like(f'{p}%'))
 

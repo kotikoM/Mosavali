@@ -79,3 +79,14 @@ async def delete_picker(picker_id: int, db: AsyncSession = Depends(get_db)):
     return {
         "message": f"Picker {picker_id} deleted successfully"
     }
+
+@router.get("/names")
+async def get_picker_names(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Picker.picker_id, Picker.first_name, Picker.last_name)
+        .order_by(Picker.picker_id)
+    )
+    return [
+        {"picker_id": r.picker_id, "first_name": r.first_name, "last_name": r.last_name}
+        for r in result.all()
+    ]

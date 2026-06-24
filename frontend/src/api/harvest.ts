@@ -76,6 +76,12 @@ export interface PickerStat {
   total_kg:     number
 }
 
+export interface PickerName {
+  picker_id:  number
+  first_name: string
+  last_name:  string
+}
+
 export interface DayBoxBreakdown {
   kg:        number
   box_types: Record<string, {
@@ -171,12 +177,12 @@ export const bulkScan = (data: BulkScanRequest) =>
 
 // ── entry listing ──────────────────────────────────────────────────────
 
-export const getEntries = (page = 1, pageSize = 25, pickerPrefix = '', boxPrefix = '') => {
+export const getEntries = (page = 1, pageSize = 25, boxPrefix = '', pickerId?: number) => {
   const params = new URLSearchParams()
   params.append('page',      String(page))
   params.append('page_size', String(pageSize))
-  if (pickerPrefix) params.append('picker_prefix', pickerPrefix)
-  if (boxPrefix)    params.append('box_prefix',    boxPrefix)
+  if (boxPrefix) params.append('box_prefix', boxPrefix)
+  if (pickerId != null) params.append('picker_id', String(pickerId))
   return api.get<PaginatedEntries>(`/harvest/entries?${params}`).then(r => r.data)
 }
 
@@ -241,3 +247,5 @@ export const getFieldStats = (
   const qs = p.toString()
   return api.get<FieldStat[]>(`/harvest/stats/fields${qs ? `?${qs}` : ''}`).then(r => r.data)
 }
+
+export const getPickerNames = () => api.get<PickerName[]>('/pickers/names').then(r => r.data)
