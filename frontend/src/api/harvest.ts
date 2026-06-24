@@ -107,6 +107,21 @@ export interface FieldStat {
   total_kg:    number
 }
 
+// Box-level detail inside the summary response
+export interface BoxBreakdownEntry {
+  count:         number
+  net_weight_kg: number
+  total_kg:      number
+}
+
+// Response shape for GET /harvest/stats/summary
+export interface SummaryStats {
+  active_pickers: number
+  total_boxes:    number
+  total_kg:       number
+  box_breakdown:  Record<string, BoxBreakdownEntry>
+}
+
 // ── export types ────────────────────────────────────────────────────────
 
 export interface PickerDetailExportEntry {
@@ -178,9 +193,6 @@ export const getPickerStats = () =>
 export const getPickerBoxStats = (from?: string, to?: string) =>
   api.get<PickerBoxStat[]>(`/harvest/stats/pickers/boxes?${dateParams(from, to)}`).then(r => r.data)
 
-export const getFieldStats = (from?: string, to?: string) =>
-  api.get<FieldStat[]>(`/harvest/stats/fields?${dateParams(from, to)}`).then(r => r.data)
-
 // ── export endpoints ────────────────────────────────────────────────────
 
 export const getPickerDetailExport = () =>
@@ -188,3 +200,43 @@ export const getPickerDetailExport = () =>
 
 export const getMasterExport = () =>
   api.get<MasterExportData>('/export/master').then(r => r.data)
+
+
+// ── Replace / add these two functions in api/harvest.ts ───────────────
+
+/**
+ * GET /harvest/stats/summary
+ *
+ * Filter precedence (first match wins):
+ *   date alone          → single day
+ *   from + to           → inclusive interval
+ *   no params           → all time
+ */
+export const getSummaryStats = (
+  date?:      string,
+  from_date?: string,
+  to_date?:   string,
+) => {
+  const p = new URLSearchParams()
+  if (date)      p.append('date',      date)
+  if (from_date) p.append('from_date', from_date)
+  if (to_date)   p.append('to_date',   to_date)
+  const qs = p.toString()
+  return api.get<SummaryStats>(`/harvest/stats/summary${qs ? `?${qs}` : ''}`).then(r => r.data)
+}
+
+/**
+ * GET /harvest/stats/fields  (updated — now accepts a single ?date= shorthand)
+ */
+export const getFieldStats = (
+  date?:      string,
+  from_date?: string,
+  to_date?:   string,
+) => {
+  const p = new URLSearchParams()
+  if (date)      p.append('date',      date)
+  if (from_date) p.append('from_date', from_date)
+  if (to_date)   p.append('to_date',   to_date)
+  const qs = p.toString()
+  return api.get<FieldStat[]>(`/harvest/stats/fields${qs ? `?${qs}` : ''}`).then(r => r.data)
+}

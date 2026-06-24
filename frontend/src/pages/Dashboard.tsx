@@ -1,12 +1,24 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, parseISO, eachDayOfInterval } from 'date-fns'
-import { getHarvestOverview, getPickerBoxStats, getFieldStats } from '../api/harvest'
+import {
+  getHarvestOverview,
+  getPickerBoxStats,
+  getFieldStats,
+  getSummaryStats,
+} from '../api/harvest'
+import type { SummaryStats } from '../api/harvest'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { X, ChevronUp, ChevronDown, Maximize2, Minimize2, FileDown } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
 import { exportDailyHarvestToExcel } from '../utils/exportDailyHarvest'
 import { fmtDate, todayTbilisi } from '../utils/time'
+
+// ── types ──────────────────────────────────────────────────────────────
+
+type FilterMode = 'day' | 'interval' | 'alltime'
+
+// ── helpers ────────────────────────────────────────────────────────────
 
 const PIE_BASE_COLOR = '#2D5A27'
 
@@ -23,44 +35,37 @@ function buildPieColors(baseHex: string, count: number): string[] {
     else if (max === g) h = ((b - r) / d + 2) / 6
     else                h = ((r - g) / d + 4) / 6
   }
-  const hDeg     = Math.round(h * 360)
-  const sPct     = Math.round(s * 100)
-  const MIN_STEP = 0.22
-  const step     = Math.max((0.88 - l) / Math.max(count - 1, 1), MIN_STEP)
+  const hDeg = Math.round(h * 360)
+  const sPct = Math.round(s * 100)
+  const step = Math.max((0.88 - l) / Math.max(count - 1, 1), 0.22)
   return Array.from({ length: count }, (_, i) => {
     const lPct = Math.min(Math.round((l + i * step) * 100), 88)
     return `hsl(${hDeg}, ${sPct}%, ${lPct}%)`
   })
 }
 
-// ── reusable breakdown dropdown ────────────────────────────────────────
+// ── breakdown dropdown ─────────────────────────────────────────────────
 
 interface BreakdownDropdownProps {
-  id:       'hero' | 'alltime'
   open:     boolean
-  onToggle: (id: 'hero' | 'alltime') => void
+  onToggle: () => void
   items:    Record<string, number>
-  variant:  'light' | 'dark'    // dark = on primary-700 hero bg
 }
 
-function BreakdownDropdown({ id, open, onToggle, items, variant }: BreakdownDropdownProps) {
+function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
   return (
     <div className="relative">
       <button
         onMouseDown={e => e.stopPropagation()}
-        onClick={e => { e.stopPropagation(); onToggle(id) }}
-        className={`p-1 rounded-lg transition-colors ${
-          variant === 'dark'
-            ? open
-              ? 'bg-primary-500 text-white'
-              : 'text-primary-300 hover:text-white hover:bg-primary-500'
-            : open
-              ? 'bg-neutral-100 text-neutral-600'
-              : 'text-neutral-300 hover:text-neutral-500 hover:bg-neutral-100'
+        onClick={e => { e.stopPropagation(); onToggle() }}
+        className={`p-1.5 rounded-lg transition-colors ${
+          open
+            ? 'bg-primary-100 text-primary-700'
+            : 'text-neutral-300 hover:text-neutral-500 hover:bg-neutral-100'
         }`}
       >
         <ChevronDown
-          size={16}
+          size={18}
           strokeWidth={2.5}
           className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
         />
@@ -69,11 +74,16 @@ function BreakdownDropdown({ id, open, onToggle, items, variant }: BreakdownDrop
       {open && (
         <div
           onMouseDown={e => e.stopPropagation()}
-          className="absolute top-full left-0 mt-1.5 z-50 bg-white border-2 border-neutral-200 rounded-xl shadow-xl p-3 min-w-44"
+          className="absolute top-full left-0 mt-2 z-50 bg-white border-2 border-neutral-200 rounded-xl shadow-xl p-3 min-w-48"
         >
-          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Breakdown</p>
+          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+            Breakdown
+          </p>
           {Object.entries(items).map(([name, count]) => (
-            <div key={name} className="flex items-center justify-between gap-6 py-1 border-b border-neutral-50 last:border-0">
+            <div
+              key={name}
+              className="flex items-center justify-between gap-8 py-1.5 border-b border-neutral-50 last:border-0"
+            >
               <span className="text-xs font-medium text-neutral-600 whitespace-nowrap">{name}</span>
               <span className="font-mono text-xs font-bold text-neutral-800">{count.toLocaleString()}</span>
             </div>
@@ -88,78 +98,95 @@ function BreakdownDropdown({ id, open, onToggle, items, variant }: BreakdownDrop
 
 export default function Dashboard() {
 
-  const [dailySortBy, setDailySortBy]             = useState<'total_boxes' | 'total_kg'>('total_boxes')
-  const [dailySortDir, setDailySortDir]           = useState<'desc' | 'asc'>('desc')
-  const [dailyFrom, setDailyFrom]                 = useState(todayTbilisi)
-  const [dailyTo,   setDailyTo]                   = useState(todayTbilisi)
-  const [dailyMaximized, setDailyMaximized]       = useState(false)
-  const [hoveredPicker, setHoveredPicker]         = useState<number | null>(null)
-  const [dailySearch, setDailySearch]             = useState('')
-  const [heroDate,  setHeroDate]                  = useState(todayTbilisi)
-  const [dailyOriginSearch, setDailyOriginSearch] = useState('')
-  const [exporting, setExporting]                 = useState(false)
-  const [selectedPickerIds, setSelectedPickerIds] = useState<Set<number>>(new Set())
-  const [openBreakdownId, setOpenBreakdownId]     = useState<'hero' | 'alltime' | null>(null)
+  // ── island filter state ──────────────────────────────────────────────
+  const [filterMode,  setFilterMode]  = useState<FilterMode>('alltime')
+  const [singleDate,  setSingleDate]  = useState(todayTbilisi)
+  const [fromDate,    setFromDate]    = useState(todayTbilisi)
+  const [toDate,      setToDate]      = useState(todayTbilisi)
+  const [bkdOpen,     setBkdOpen]     = useState(false)
 
-  // ── Queries ───────────────────────────────────────────────────────
-  const { data: overview,              isLoading: overviewLoading   } = useQuery({ queryKey: ['harvest-overview'],                     queryFn: getHarvestOverview })
-  const { data: pickerDailyStats = [], isLoading: dailyLoading      } = useQuery({ queryKey: ['picker-box-stats', dailyFrom, dailyTo], queryFn: () => getPickerBoxStats(dailyFrom, dailyTo) })
-  const { data: fieldStats = [],       isLoading: fieldStatsLoading } = useQuery({ queryKey: ['field-stats'],                         queryFn: () => getFieldStats() })
-  const { data: todayStats = [],       isLoading: todayLoading      } = useQuery({
-    queryKey: ['picker-box-stats-hero', heroDate],
-    queryFn:  () => getPickerBoxStats(heroDate, heroDate),
+  // ── picker table state ───────────────────────────────────────────────
+  const [dailySortBy,       setDailySortBy]       = useState<'total_boxes' | 'total_kg'>('total_boxes')
+  const [dailySortDir,      setDailySortDir]       = useState<'desc' | 'asc'>('desc')
+  const [dailyFrom,         setDailyFrom]          = useState(todayTbilisi)
+  const [dailyTo,           setDailyTo]            = useState(todayTbilisi)
+  const [dailyMaximized,    setDailyMaximized]     = useState(false)
+  const [hoveredPicker,     setHoveredPicker]      = useState<number | null>(null)
+  const [dailySearch,       setDailySearch]        = useState('')
+  const [dailyOriginSearch, setDailyOriginSearch]  = useState('')
+  const [exporting,         setExporting]          = useState(false)
+  const [selectedPickerIds, setSelectedPickerIds]  = useState<Set<number>>(new Set())
+
+  // ── queries ──────────────────────────────────────────────────────────
+
+  const { data: overview } = useQuery({
+    queryKey: ['harvest-overview'],
+    queryFn:  getHarvestOverview,
   })
-  const { data: allTimeStats = [] } = useQuery({
-    queryKey: ['picker-box-stats-alltime'],
-    queryFn:  () => getPickerBoxStats(),
+
+  const { data: summary, isLoading: summaryLoading } = useQuery<SummaryStats>({
+    queryKey: ['summary', filterMode, singleDate, fromDate, toDate],
+    queryFn:  () => {
+      if (filterMode === 'day')      return getSummaryStats(singleDate)
+      if (filterMode === 'interval') return getSummaryStats(undefined, fromDate, toDate)
+      return getSummaryStats()
+    },
   })
 
-  // ── Click-outside: close breakdown dropdown ───────────────────────
-  useEffect(() => {
-    if (openBreakdownId === null) return
-    const handler = () => setOpenBreakdownId(null)
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [openBreakdownId])
+  const { data: fieldStats = [], isLoading: fieldLoading } = useQuery({
+    queryKey: ['field-stats', filterMode, singleDate, fromDate, toDate],
+    queryFn:  () => {
+      if (filterMode === 'day')      return getFieldStats(singleDate)
+      if (filterMode === 'interval') return getFieldStats(undefined, fromDate, toDate)
+      return getFieldStats()
+    },
+  })
 
-  // ── Escape: close maximized table ─────────────────────────────────
+  const { data: pickerDailyStats = [], isLoading: dailyLoading } = useQuery({
+    queryKey: ['picker-box-stats', dailyFrom, dailyTo],
+    queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
+  })
+
+  // ── effects ──────────────────────────────────────────────────────────
+
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && dailyMaximized) setDailyMaximized(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    if (!bkdOpen) return
+    const h = () => setBkdOpen(false)
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [bkdOpen])
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && dailyMaximized) setDailyMaximized(false) }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
   }, [dailyMaximized])
 
-  // ── Reset selection when filters change ───────────────────────────
   useEffect(() => {
     setSelectedPickerIds(new Set())
   }, [dailyFrom, dailyTo, dailySearch, dailyOriginSearch])
 
-  // ── Derived values ────────────────────────────────────────────────
-  const pieColors = useMemo(
-    () => buildPieColors(PIE_BASE_COLOR, Math.max(fieldStats.length, 1)),
-    [fieldStats.length]
+  // ── derived: island ──────────────────────────────────────────────────
+
+  const activePickers = summary?.active_pickers ?? 0
+  const totalPickers  = overview?.total_pickers  ?? 0
+  const totalBoxes    = summary?.total_boxes      ?? 0
+  const totalKg       = summary?.total_kg         ?? 0
+
+  const boxBreakdownCounts = useMemo<Record<string, number>>(
+    () => summary
+      ? Object.fromEntries(Object.entries(summary.box_breakdown).map(([k, v]) => [k, v.count]))
+      : {},
+    [summary],
   )
 
-  const allTimeBoxTypes = useMemo(() => {
-    return allTimeStats.reduce((acc, p) => {
-      Object.entries(p.total_box_types).forEach(([name, count]) => {
-        acc[name] = (acc[name] ?? 0) + (count as number)
-      })
-      return acc
-    }, {} as Record<string, number>)
-  }, [allTimeStats])
+  const pieColors  = useMemo(
+    () => buildPieColors(PIE_BASE_COLOR, Math.max(fieldStats.length, 1)),
+    [fieldStats.length],
+  )
+  const fieldTotal = fieldStats.reduce((s, f) => s + f.total_kg, 0)
 
-  const pickersToday  = todayStats.length
-  const boxesToday    = todayStats.reduce((sum, p) => sum + p.total_boxes, 0)
-  const totalBoxTypes = todayStats.reduce((acc, p) => {
-    Object.entries(p.total_box_types).forEach(([name, count]) => {
-      acc[name] = (acc[name] ?? 0) + (count as number)
-    })
-    return acc
-  }, {} as Record<string, number>)
-  const kgToday = Math.round(todayStats.reduce((sum, p) => sum + p.total_kg, 0) * 10) / 10
+  // ── derived: picker table ────────────────────────────────────────────
 
   const dailyColumns = useMemo(() => {
     const days = eachDayOfInterval({ start: parseISO(dailyFrom), end: parseISO(dailyTo) })
@@ -168,45 +195,29 @@ export default function Dashboard() {
 
   const boxNetWeights = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const picker of pickerDailyStats) {
-      for (const dayData of Object.values(picker.days)) {
-        for (const [name, info] of Object.entries(dayData.box_types)) {
+    for (const picker of pickerDailyStats)
+      for (const dayData of Object.values(picker.days))
+        for (const [name, info] of Object.entries(dayData.box_types))
           if (!(name in map)) map[name] = info.net_weight_kg
-        }
-      }
-    }
     return map
   }, [pickerDailyStats])
 
   const filteredDailyStats = useMemo(() => {
-    const filtered = pickerDailyStats.filter(p => {
-      const nameMatch   = !dailySearch.trim()       || `${p.first_name} ${p.last_name}`.toLowerCase().includes(dailySearch.toLowerCase()) || p.national_id.includes(dailySearch)
-      const originMatch = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.toLowerCase())
-      return nameMatch && originMatch
+    const f = pickerDailyStats.filter(p => {
+      const nm = !dailySearch.trim()       || `${p.first_name} ${p.last_name}`.toLowerCase().includes(dailySearch.toLowerCase()) || p.national_id.includes(dailySearch)
+      const om = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.toLowerCase())
+      return nm && om
     })
-    return filtered.sort((a, b) =>
+    return f.sort((a, b) =>
       dailySortDir === 'desc' ? b[dailySortBy] - a[dailySortBy] : a[dailySortBy] - b[dailySortBy]
     )
   }, [pickerDailyStats, dailySearch, dailyOriginSearch, dailySortBy, dailySortDir])
 
-  // ── Selection helpers ─────────────────────────────────────────────
-  const allSelected  = filteredDailyStats.length > 0 &&
-                       filteredDailyStats.every(p => selectedPickerIds.has(p.picker_id))
+  const allSelected  = filteredDailyStats.length > 0 && filteredDailyStats.every(p => selectedPickerIds.has(p.picker_id))
   const someSelected = selectedPickerIds.size > 0
 
   const togglePicker = (id: number) =>
-    setSelectedPickerIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-
-  const toggleAll = () =>
-    setSelectedPickerIds(
-      allSelected
-        ? new Set()
-        : new Set(filteredDailyStats.map(p => p.picker_id))
-    )
+    setSelectedPickerIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const handleDailySort = (col: 'total_boxes' | 'total_kg') => {
     if (dailySortBy === col) setDailySortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -231,209 +242,249 @@ export default function Dashboard() {
     }
   }
 
-  const toggleBreakdown = (id: 'hero' | 'alltime') =>
-    setOpenBreakdownId(prev => prev === id ? null : id)
+  // ── render ────────────────────────────────────────────────────────────
 
-  // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-6">
 
       <h1 className="text-3xl font-bold text-neutral-800">Dashboard</h1>
 
-    {/* ── DAY HERO ───────────────────────────────────────────────── */}
-    <div className="bg-primary-700 rounded-2xl shrink-0">
+      {/* ── ISLAND ──────────────────────────────────────────────────── */}
+      <div
+        className="bg-white rounded-2xl border-2 border-neutral-200 shadow-lg overflow-hidden flex flex-col"
+        style={{ height: 'calc(100vh - 7rem)' }}
+      >
 
-      <div className="px-8 pt-7 pb-0 flex items-center gap-6 rounded-t-2xl">
-        <p className="text-sm font-bold text-white uppercase tracking-[0.3em]">Field Report</p>
-        <div className="w-px h-8 bg-primary-500 shrink-0" />
-        <DatePicker
-          value={heroDate}
-          onChange={setHeroDate}
-          className="border-primary-500 bg-primary-600 text-white hover:bg-primary-500"
-        />
-      </div>
+        {/* ── header ──────────────────────────────────────────────── */}
+        <div className="flex items-center gap-5 px-8 py-5 border-b-2 border-neutral-100 shrink-0 flex-wrap gap-y-3">
 
-      <div className="grid grid-cols-3 mt-2">
+          {/* title */}
+          <span className="text-xl font-bold text-neutral-900 shrink-0">Harvest Report</span>
 
-        {/* Pickers Active */}
-        <div className="relative flex flex-col px-8 py-8 rounded-bl-2xl">
-          <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
-          <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Pickers Active</span>
-          <span className="font-mono font-black text-white" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-            {todayLoading ? '—' : pickersToday}
-          </span>
-        </div>
+          <div className="w-px h-7 bg-neutral-200 shrink-0" />
 
-        {/* Boxes Scanned */}
-        <div className="relative flex flex-col px-8 py-8">
-          <div className="absolute right-0 top-6 bottom-6 w-px bg-primary-500" />
-          <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Boxes Scanned</span>
-
-          {/* Changed items-end to items-baseline to line up the font baselines */}
-          <div className="flex items-baseline gap-3">
-            <span className="font-mono font-black text-white" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-              {todayLoading ? '—' : boxesToday.toLocaleString()}
-            </span>
-            {!todayLoading && Object.keys(totalBoxTypes).length > 0 && (
-              /* Nudge the dropdown wrapper down slightly to visually ground the tip of the chevron to the baseline */
-              <div className="relative z-50 translate-y-[6px]">
-                <BreakdownDropdown
-                  id="hero"
-                  open={openBreakdownId === 'hero'}
-                  onToggle={toggleBreakdown}
-                  items={totalBoxTypes}
-                  variant="dark"
-                />
-              </div>
-            )}
+          {/* mode toggle */}
+          <div className="flex items-center bg-neutral-100 rounded-xl p-1 gap-0.5 shrink-0">
+            {(['day', 'interval', 'alltime'] as FilterMode[]).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setFilterMode(mode)}
+                className={`px-5 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+                  filterMode === mode
+                    ? 'bg-primary-700 text-white shadow-sm'
+                    : 'text-neutral-500 hover:text-neutral-700'
+                }`}
+              >
+                {mode === 'day' ? 'Day' : mode === 'interval' ? 'Interval' : 'All time'}
+              </button>
+            ))}
           </div>
-        </div>
 
-        {/* Harvested */}
-        <div className="flex flex-col px-8 py-8 rounded-br-2xl">
-          <span className="text-lg font-bold text-primary-100 uppercase tracking-widest mb-4">Harvested</span>
-          <div className="flex items-baseline gap-4">
-            <span className="font-mono font-black text-white" style={{ fontSize: '100px', letterSpacing: '-4px', lineHeight: 1 }}>
-              {todayLoading ? '—' : kgToday.toLocaleString()}
-            </span>
-            <span className="text-4xl font-black text-primary-100">kg</span>
-          </div>
-        </div>
+          <div className="w-px h-7 bg-neutral-200 shrink-0" />
 
-      </div>
-    </div>
+          {/* date controls — morph based on mode */}
+          {filterMode === 'day' && (
+            <DatePicker value={singleDate} onChange={setSingleDate} />
+          )}
 
-      {/* ── ALL-TIME STATS + FIELD PIE ──────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4 items-stretch">
-
-        {/* All-time stats */}
-        <div className="col-span-2 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col min-w-0">
-          <p className="text-xl font-bold text-neutral-900 mb-1">All Time Report</p>
-          <p className="text-sm text-neutral-400 mb-6">
-            Harvest totals
-            {overview?.first_harvest_date && (
-              <span className="ml-2 text-neutral-300">
-                — since {format(parseISO(overview.first_harvest_date), 'MMM d, yyyy')}
-              </span>
-            )}
-          </p>
-          <div className="flex gap-4">
-
-            {/* Registered Pickers */}
-            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Registered Pickers</p>
-              <p className="text-6xl font-black text-neutral-400 leading-none">
-                {overviewLoading ? '—' : overview?.total_pickers.toLocaleString() ?? '—'}
-              </p>
-            </div>
-
-                    {/* Boxes Scanned */}
-                    <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
-                      <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Boxes Scanned</p>
-
-                      {/* Changed items-end to items-baseline */}
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-6xl font-black text-neutral-400 leading-none">
-                          {overviewLoading ? '—' : overview?.total_scanned.toLocaleString() ?? '—'}
-                        </p>
-                        {Object.keys(allTimeBoxTypes).length > 0 && (
-                          /* Replaced mb-1 with translate-y-[4px] and relative z-50 to ensure it overlaps cleanly */
-                          <div className="relative z-50 translate-y-[4px]">
-                            <BreakdownDropdown
-                              id="alltime"
-                              open={openBreakdownId === 'alltime'}
-                              onToggle={toggleBreakdown}
-                              items={allTimeBoxTypes}
-                              variant="light"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-            {/* Total Harvested */}
-            <div className="flex-1 bg-neutral-50 rounded-2xl p-6 border border-neutral-100 flex flex-col gap-3 min-w-0">
-              <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider leading-snug">Total Harvested</p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-6xl font-black text-neutral-400 leading-none">
-                  {overviewLoading ? '—' : overview?.total_kg.toLocaleString() ?? '—'}
-                </p>
-                <span className="text-2xl font-black text-neutral-400">kg</span>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Field pie */}
-        <div className="col-span-1 bg-white rounded-2xl border-2 border-neutral-200 shadow-lg p-6 flex flex-col">
-          <div className="mb-6">
-            <p className="text-xl font-bold text-neutral-900">Harvest By Field</p>
-            <p className="text-sm text-neutral-400">kg harvested — all time</p>
-          </div>
-          {fieldStatsLoading ? (
-            <div className="flex items-center justify-center flex-1 text-neutral-400 text-sm">Loading...</div>
-          ) : fieldStats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 gap-2">
-              <p className="text-neutral-400 text-sm">No field data yet</p>
-            </div>
-          ) : (
-            <div className="flex flex-1 gap-4 min-h-0 items-center">
-              <div className="shrink-0" style={{ width: 150, height: 150 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={fieldStats}
-                      dataKey="total_kg"
-                      nameKey="field_name"
-                      cx="50%" cy="50%"
-                      innerRadius={38} outerRadius={65}
-                      paddingAngle={3}
-                      isAnimationActive
-                      animationBegin={0}
-                      animationDuration={800}
-                      animationEasing="ease-out"
-                    >
-                      {fieldStats.map((_, idx) => (
-                        <Cell key={idx} fill={pieColors[idx % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']}
-                      contentStyle={{ borderRadius: '12px', border: '2px solid #E3E4E6', fontSize: '12px', fontWeight: 600 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-col gap-2 overflow-y-auto">
-                {fieldStats.map((f, idx) => {
-                  const total = fieldStats.reduce((sum, s) => sum + s.total_kg, 0)
-                  const pct   = total > 0 ? ((f.total_kg / total) * 100).toFixed(1) : '0'
-                  return (
-                    <div key={f.field_id} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pieColors[idx % pieColors.length] }} />
-                        <span className="text-sm font-medium text-neutral-700 truncate">{f.field_name}</span>
-                        <span className="flex-1 overflow-hidden whitespace-nowrap text-xs text-neutral-300 tracking-widest">{'- '.repeat(40)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-neutral-400">{pct}%</span>
-                        <span className="font-mono text-xs font-bold text-neutral-700">{f.total_kg.toLocaleString()} kg</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+          {filterMode === 'interval' && (
+            <div className="flex items-center gap-3">
+              <DatePicker value={fromDate} onChange={setFromDate} />
+              <span className="text-neutral-300 font-bold text-lg">→</span>
+              <DatePicker value={toDate} onChange={setToDate} />
             </div>
           )}
+
+                {filterMode === 'alltime' && (
+                  overview?.first_harvest_date
+                    ? (
+                      <span className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-sm font-medium text-primary-700 whitespace-nowrap">
+                        Since {format(parseISO(overview.first_harvest_date), 'MMM d, yyyy')}
+                      </span>
+                    ) : (
+                      <span className="flex items-center px-4 py-2.5 rounded-xl border-2 border-neutral-200 bg-neutral-50 text-sm font-medium text-neutral-400 whitespace-nowrap">
+                        All records
+                      </span>
+                    )
+                )}
+
         </div>
 
+        {/* ── body ────────────────────────────────────────────────── */}
+        <div className="flex-1 min-h-0 flex">
+
+          {/* ── left: 3 stats ─────────────────────────────────────── */}
+          <div className="flex flex-col border-r-2 border-neutral-100" style={{ flex: '0 0 66.667%' }}>
+
+            {/* PICKERS ACTIVE */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+                Pickers Active
+              </span>
+              <div className="flex items-baseline gap-3">
+                <span
+                  className="font-mono font-black text-neutral-900 leading-none"
+                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                >
+                  {summaryLoading ? '—' : activePickers}
+                </span>
+                {!summaryLoading && totalPickers > 0 && (
+                  <span
+                    className="font-mono font-black text-neutral-300 leading-none"
+                    style={{ fontSize: '36px', letterSpacing: '-2px' }}
+                  >
+                    /{totalPickers}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* BOXES SCANNED */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-8 border-b border-neutral-100">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+                  Boxes Scanned
+                </span>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span
+                  className="font-mono font-black text-primary-800 leading-none"
+                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                >
+                  {summaryLoading ? '—' : totalBoxes.toLocaleString()}
+                </span>
+                {!summaryLoading && Object.keys(boxBreakdownCounts).length > 0 && (
+                  <div className="relative" style={{ transform: 'translateY(6px)' }}>
+                    <BreakdownDropdown
+                      open={bkdOpen}
+                      onToggle={() => setBkdOpen(o => !o)}
+                      items={boxBreakdownCounts}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* HARVESTED */}
+            <div className="flex-1 flex flex-col justify-between px-10 py-8">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+                Harvested
+              </span>
+              <div className="flex items-baseline gap-4">
+                <span
+                  className="font-mono font-black text-neutral-900 leading-none"
+                  style={{ fontSize: '100px', letterSpacing: '-5px' }}
+                >
+                  {summaryLoading ? '—' : totalKg.toLocaleString()}
+                </span>
+                <span
+                  className="font-black text-neutral-400 leading-none"
+                  style={{ fontSize: '36px' }}
+                >
+                  kg
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── right: field donut ─────────────────────────────────── */}
+          <div className="flex-1 flex flex-col px-8 py-8 min-h-0">
+
+            {/* section header */}
+            <div className="flex items-start justify-between mb-6 shrink-0">
+              <p className="text-xs font-bold text-neutral-400 uppercase tracking-[0.2em]">
+                Harvest By Field
+              </p>
+              {!fieldLoading && fieldStats.length > 0 && (
+                <p className="text-sm font-bold text-neutral-400">
+                  {fieldTotal.toLocaleString()} kg total
+                </p>
+              )}
+            </div>
+
+            {fieldLoading ? (
+              <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
+                Loading…
+              </div>
+            ) : fieldStats.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
+                No field data for this period
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-0">
+
+                {/* donut */}
+                <div className="shrink-0" style={{ width: 220, height: 220 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={fieldStats}
+                        dataKey="total_kg"
+                        nameKey="field_name"
+                        cx="50%" cy="50%"
+                        innerRadius={62} outerRadius={100}
+                        paddingAngle={3}
+                        animationBegin={0}
+                        animationDuration={700}
+                        animationEasing="ease-out"
+                      >
+                        {fieldStats.map((_, idx) => (
+                          <Cell key={idx} fill={pieColors[idx % pieColors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Harvested']}
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: '2px solid #E3E4E6',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* legend */}
+                <div className="w-full flex flex-col gap-3">
+                  {fieldStats.map((f, idx) => {
+                    const pct = fieldTotal > 0 ? ((f.total_kg / fieldTotal) * 100).toFixed(1) : '0'
+                    return (
+                      <div key={f.field_id} className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: pieColors[idx % pieColors.length] }}
+                          />
+                          <span className="text-sm font-medium text-neutral-700 truncate">
+                            {f.field_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <span className="text-sm text-neutral-400 tabular-nums w-12 text-right">
+                            {pct}%
+                          </span>
+                          <span className="font-mono text-sm font-bold text-neutral-800 tabular-nums">
+                            {f.total_kg.toLocaleString()} kg
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
 
-      {/* ── DAILY HARVEST TABLE ─────────────────────────────────────── */}
+      {/* ── DAILY HARVEST TABLE ──────────────────────────────────────── */}
       <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white' : 'rounded-2xl'}`}>
 
-        {/* Header */}
+        {/* header */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
 
           <div className="shrink-0">
@@ -516,7 +567,7 @@ export default function Dashboard() {
 
         </div>
 
-        {/* Body */}
+        {/* body */}
         {dailyLoading ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">Loading...</div>
         ) : filteredDailyStats.length === 0 ? (
@@ -524,14 +575,13 @@ export default function Dashboard() {
         ) : (
           <div className={`flex ${dailyMaximized ? 'flex-1 overflow-hidden min-h-0' : ''}`}>
 
-            {/* Frozen left */}
+            {/* frozen left */}
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
                   <tr className="border-b-2 border-neutral-100 bg-neutral-50">
-                    <th className="px-4 py-4 w-10">
-                    </th>
-                    <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest whitespace-nowrap w-10">#</th>
+                    <th className="px-4 py-4 w-10" />
+                    <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th
                       className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
@@ -557,30 +607,18 @@ export default function Dashboard() {
                         onMouseEnter={() => setHoveredPicker(p.picker_id)}
                         onMouseLeave={() => setHoveredPicker(null)}
                         className="border-b border-neutral-100 transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: isSelected
-                            ? '#EDF5EC'
-                            : hoveredPicker === p.picker_id ? '#F0F5EF' : '',
-                        }}
+                        style={{ backgroundColor: isSelected ? '#EDF5EC' : hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
                       >
                         <td className="px-4 py-4 align-middle">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            className="w-4 h-4 rounded accent-primary-600 pointer-events-none"
-                          />
+                          <input type="checkbox" checked={isSelected} onChange={() => {}} className="w-4 h-4 rounded accent-primary-600 pointer-events-none" />
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap align-middle">
                           <span className="text-sm font-bold text-neutral-300 font-mono block text-center leading-none">{idx + 1}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
-                          <span className="font-semibold text-neutral-800 block">
-                            {p.last_name} {p.first_name}
-                          </span>
+                          <span className="font-semibold text-neutral-800 block">{p.last_name} {p.first_name}</span>
                           <span className="font-mono text-xs text-neutral-400 block mt-0.5">
-                            {p.national_id}
-                            {p.origin_place && `, ${p.origin_place}`}
+                            {p.national_id}{p.origin_place && `, ${p.origin_place}`}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
@@ -594,12 +632,12 @@ export default function Dashboard() {
                           </span>
                           <span className="text-xs text-neutral-400 block mt-1 space-y-0.5">
                             {Object.entries(p.total_box_types).map(([name, count]) => {
-                                const w = boxNetWeights[name]
-                                return (
-                                    <span key={name} className="block">
-                                        {name}{w != null ? ` (${w}kg)` : ''}: {count}
-                                    </span>
-                                )
+                              const w = boxNetWeights[name]
+                              return (
+                                <span key={name} className="block">
+                                  {name}{w != null ? ` (${w}kg)` : ''}: {count}
+                                </span>
+                              )
                             })}
                           </span>
                         </td>
@@ -610,7 +648,7 @@ export default function Dashboard() {
               </table>
             </div>
 
-            {/* Scrollable daily columns */}
+            {/* scrollable day columns */}
             <div className={`flex-1 overflow-x-auto ${dailyMaximized ? 'overflow-y-auto' : ''}`}>
               <table>
                 <thead>
@@ -631,11 +669,7 @@ export default function Dashboard() {
                         onMouseEnter={() => setHoveredPicker(p.picker_id)}
                         onMouseLeave={() => setHoveredPicker(null)}
                         className="border-b border-neutral-100 transition-colors"
-                        style={{
-                          backgroundColor: isSelected
-                            ? '#EDF5EC'
-                            : hoveredPicker === p.picker_id ? '#F0F5EF' : '',
-                        }}
+                        style={{ backgroundColor: isSelected ? '#EDF5EC' : hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
                       >
                         {dailyColumns.map(day => {
                           const dayData = p.days[day]
@@ -644,22 +678,20 @@ export default function Dashboard() {
                               <span className="text-neutral-200 text-sm">—</span>
                             </td>
                           )
-                            return (
-                              <td key={day} className="px-4 py-4 whitespace-nowrap align-top">
-                                <span className="font-mono font-bold text-neutral-800 block">
-                                  {dayData.kg.toLocaleString()} kg
-                                </span>
-                                {/* Added space-y-0.5 to give a tiny vertical breather between lines */}
-                                <div className="text-xs text-neutral-400 font-mono mt-1 space-y-0.5">
-                                  {Object.entries(dayData.box_types).map(([boxName, info]) => (
-                                    /* Changed to a block div so each box type breaks to the next line */
-                                    <div key={boxName}>
-                                      {boxName} ({info.net_weight_kg}kg): {info.count}
-                                    </div>
-                                  ))}
-                                </div>
-                              </td>
-                            )
+                          return (
+                            <td key={day} className="px-4 py-4 whitespace-nowrap align-top">
+                              <span className="font-mono font-bold text-neutral-800 block">
+                                {dayData.kg.toLocaleString()} kg
+                              </span>
+                              <div className="text-xs text-neutral-400 font-mono mt-1 space-y-0.5">
+                                {Object.entries(dayData.box_types).map(([boxName, info]) => (
+                                  <div key={boxName}>
+                                    {boxName} ({info.net_weight_kg}kg): {info.count}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          )
                         })}
                       </tr>
                     )

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query as FastApiQuery
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date
+from datetime import date as DateType
 
 from app.database import get_db
 from app.entities.harvest_entry import HarvestEntry
@@ -13,10 +13,27 @@ from app.schemas.harvest_entry import DailyStatEntry, DailyStatsResponse
 router = APIRouter(prefix="/harvest/stats", tags=["harvest-stats"])
 
 
+# ── shared filter helper ───────────────────────────────────────────────
+
+def _apply_date_filter(query, date_col, single_date, from_date, to_date):
+    """
+    Priority: single_date > from_date/to_date > all-time (no filter).
+    """
+    if single_date:
+        return query.where(date_col == single_date)
+    if from_date:
+        query = query.where(date_col >= from_date)
+    if to_date:
+        query = query.where(date_col <= to_date)
+    return query
+
+
+# ── existing endpoints (unchanged) ────────────────────────────────────
+
 @router.get("/daily", response_model=DailyStatsResponse)
 async def get_daily_stats(
-    from_date: date | None = None,
-    to_date:   date | None = None,
+    from_date: DateType | None = None,
+    to_date:   DateType | None = None,
     db:        AsyncSession = Depends(get_db),
 ):
     query = (
@@ -53,9 +70,9 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
     first_date_result = await db.execute(select(func.min(HarvestEntry.harvest_date)))
     first_date = first_date_result.scalar()
     return {
-        "total_pickers": picker_result.scalar() or 0,
-        "total_scanned": scan_result.scalar() or 0,
-        "total_kg":      round(float(kg_result.scalar() or 0), 3),
+        "total_pickers":      picker_result.scalar() or 0,
+        "total_scanned":      scan_result.scalar() or 0,
+        "total_kg":           round(float(kg_result.scalar() or 0), 3),
         "first_harvest_date": str(first_date) if first_date else None,
     }
 
@@ -91,8 +108,8 @@ async def get_picker_stats(db: AsyncSession = Depends(get_db)):
 
 @router.get("/pickers/daily")
 async def get_picker_daily_stats(
-    from_date: date | None = None,
-    to_date:   date | None = None,
+    from_date: DateType | None = None,
+    to_date:   DateType | None = None,
     db:        AsyncSession = Depends(get_db),
 ):
     query = (
@@ -137,8 +154,8 @@ async def get_picker_daily_stats(
 
 @router.get("/pickers/boxes")
 async def get_picker_box_stats(
-    from_date: date | None = None,
-    to_date:   date | None = None,
+    from_date: DateType | None = None,
+    to_date:   DateType | None = None,
     db:        AsyncSession = Depends(get_db),
 ):
     query = (
@@ -213,13 +230,79 @@ async def get_picker_box_stats(
     return list(pickers.values())
 
 
+# ── new endpoints ──────────────────────────────────────────────────────
+
+@router.get("/summary")
+async def get_summary_stats(
+    single_date: DateType | None = FastApiQuery(default=None, alias="date"),
+    from_date:   DateType | None = None,
+    to_date:     DateType | None = None,
+    db:          AsyncSession = Depends(get_db),
+):
+    """
+    Aggregated harvest stats for a single day, an inclusive interval, or all time.
+
+    Filter precedence (first match wins):
+      ?date=YYYY-MM-DD                     → single day
+      ?from_date=YYYY-MM-DD&to_date=...    → inclusive interval
+      (no params)                          → all time
+    """
+    # ── distinct pickers with at least one entry in range ─────────────
+    picker_q = _apply_date_filter(
+        select(func.count(func.distinct(HarvestEntry.picker_id))),
+        HarvestEntry.harvest_date,
+        single_date, from_date, to_date,
+    )
+    active_pickers = (await db.execute(picker_q)).scalar() or 0
+
+    # ── box-type breakdown ─────────────────────────────────────────────
+    box_q = _apply_date_filter(
+        select(
+            Box.box_id,
+            Box.name.label("box_name"),
+            Box.net_weight_kg,
+            func.count(HarvestEntry.box_number).label("count"),
+            func.sum(Box.net_weight_kg).label("total_kg"),
+        )
+        .join(HarvestEntry, HarvestEntry.box_type_id == Box.box_id)
+        .group_by(Box.box_id, Box.name, Box.net_weight_kg)
+        .order_by(Box.box_id),
+        HarvestEntry.harvest_date,
+        single_date, from_date, to_date,
+    )
+    box_rows = (await db.execute(box_q)).all()
+
+    return {
+        "active_pickers": active_pickers,
+        "total_boxes":    sum(r.count for r in box_rows),
+        "total_kg":       round(sum(float(r.total_kg or 0) for r in box_rows), 3),
+        "box_breakdown": {
+            r.box_name: {
+                "count":         r.count,
+                "net_weight_kg": float(r.net_weight_kg),
+                "total_kg":      round(float(r.total_kg or 0), 3),
+            }
+            for r in box_rows
+        },
+    }
+
+
 @router.get("/fields")
 async def get_field_stats(
-    from_date: date | None = None,
-    to_date:   date | None = None,
-    db:        AsyncSession = Depends(get_db),
+    single_date: DateType | None = FastApiQuery(default=None, alias="date"),
+    from_date:   DateType | None = None,
+    to_date:     DateType | None = None,
+    db:          AsyncSession = Depends(get_db),
 ):
-    query = (
+    """
+    Kg (and box count) harvested per field.
+
+    Same filter precedence as /summary:
+      ?date=YYYY-MM-DD                     → single day
+      ?from_date=YYYY-MM-DD&to_date=...    → inclusive interval
+      (no params)                          → all time
+    """
+    query = _apply_date_filter(
         select(
             Field.field_id,
             Field.field_name,
@@ -230,12 +313,10 @@ async def get_field_stats(
         .join(HarvestEntry, HarvestEntry.field_id == Field.field_id)
         .join(Box, Box.box_id == HarvestEntry.box_type_id)
         .group_by(Field.field_id, Field.field_name, Field.description)
-        .order_by(func.sum(Box.net_weight_kg).desc())
+        .order_by(func.sum(Box.net_weight_kg).desc()),
+        HarvestEntry.harvest_date,
+        single_date, from_date, to_date,
     )
-    if from_date:
-        query = query.where(HarvestEntry.harvest_date >= from_date)
-    if to_date:
-        query = query.where(HarvestEntry.harvest_date <= to_date)
 
     result = await db.execute(query)
     return [
