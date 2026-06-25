@@ -112,7 +112,7 @@ function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
 
 export default function Dashboard() {
 
-  const [filterMode,  setFilterMode]  = useState<FilterMode>('alltime')
+  const [filterMode,  setFilterMode]  = useState<FilterMode>('day')
   const [singleDate,  setSingleDate]  = useState(todayTbilisi)
   const [fromDate,    setFromDate]    = useState(todayTbilisi)
   const [toDate,      setToDate]      = useState(todayTbilisi)
