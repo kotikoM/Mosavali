@@ -208,7 +208,10 @@ export default function Dashboard() {
 
   const filteredDailyStats = useMemo(() => {
     const f = pickerDailyStats.filter(p => {
-      const nm = !dailySearch.trim()       || `${p.first_name} ${p.last_name}`.toLowerCase().includes(dailySearch.toLowerCase()) || p.national_id.includes(dailySearch)
+      const q = dailySearch.trim().toLowerCase()
+      const nm = !q ||
+        `${p.last_name} ${p.first_name}`.toLowerCase().includes(q) ||
+        `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)
       const om = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.toLowerCase())
       return nm && om
     })
@@ -557,7 +560,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => setDailyMaximized(m => !m)}
-            className="ml-auto p-2 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
+            className="ml-auto self-end flex items-center justify-center h-11 w-11 rounded-xl border-2 border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
           >
             {dailyMaximized ? <Minimize2 size={16} strokeWidth={2.5} /> : <Maximize2 size={16} strokeWidth={2.5} />}
           </button>
@@ -646,7 +649,7 @@ export default function Dashboard() {
             </div>
 
             {/* scrollable day columns — horizontal scroll only */}
-            <div className="flex-1 overflow-x-auto">
+            <div className="flex-1 overflow-x-auto overflow-y-hidden">
               <table>
                 <thead>
                   <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
