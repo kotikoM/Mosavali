@@ -18,5 +18,7 @@ export interface BoxCreate {
   description?: string
 }
 
-export const getBoxes  = ()                  => api.get<Box[]>('/boxes/').then(r => r.data)
-export const createBox = (data: BoxCreate)   => api.post<Box>('/boxes/', data).then(r => r.data)
+export const getBoxes  = ()                                  => api.get<Box[]>('/boxes/').then(r => r.data)
+export const createBox = (data: BoxCreate)                   => api.post<Box>('/boxes/', data).then(r => r.data)
+export const updateBox = (id: number, data: BoxCreate)       => api.put<Box>(`/boxes/${id}`, data).then(r => r.data)
+export const deleteBox = (id: number)                        => api.delete(`/boxes/${id}`).then(r => r.data)

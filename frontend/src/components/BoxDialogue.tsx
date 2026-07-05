@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Package2, X } from 'lucide-react'
-import type { BoxCreate } from '../api/boxes'
+import type { Box, BoxCreate } from '../api/boxes'
 
 interface Props {
   open:     boolean
   onClose:  () => void
   onSubmit: (data: BoxCreate) => void
+  box?:     Box | null
   loading:  boolean
 }
 
@@ -45,7 +46,9 @@ function onWeightPaste(
 
 // ─────────────────────────────────────────────────────────────────────
 
-export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
+export default function BoxDialog({ open, onClose, onSubmit, box, loading }: Props) {
+  const isEdit = !!box
+
   const [form, setForm] = useState({
     name:            '',
     empty_weight_kg: '',
@@ -57,9 +60,18 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
 
   useEffect(() => {
     if (!open) return
-    setForm({ name: '', empty_weight_kg: '', full_weight_kg: '', description: '' })
+    if (box) {
+      setForm({
+        name:            box.name,
+        empty_weight_kg: box.empty_weight_kg,
+        full_weight_kg:  box.full_weight_kg,
+        description:     box.description ?? '',
+      })
+    } else {
+      setForm({ name: '', empty_weight_kg: '', full_weight_kg: '', description: '' })
+    }
     setErrors({})
-  }, [open])
+  }, [open, box])
 
   const netWeight = useMemo(() => {
     const empty = parseFloat(form.empty_weight_kg)
@@ -110,8 +122,12 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
             {/* Header */}
             <div className="flex items-start justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-black tracking-tight text-neutral-900">Register Box Type</h2>
-                <p className="mt-1 text-sm text-neutral-500">Define a new container weights.</p>
+                <h2 className="text-2xl font-black tracking-tight text-neutral-900">
+                  {isEdit ? 'Edit Box Type' : 'Register Box Type'}
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  {isEdit ? 'Update this container\'s weights.' : 'Define a new container weights.'}
+                </p>
               </div>
               <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 transition-colors mt-1">
                 <X size={22} />
@@ -210,7 +226,7 @@ export default function BoxDialog({ open, onClose, onSubmit, loading }: Props) {
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-700 py-3 text-sm font-semibold text-white hover:bg-primary transition-colors disabled:opacity-50"
               >
                 <Package2 size={17} />
-                Save Configuration
+                {isEdit ? 'Save Changes' : 'Save Configuration'}
               </button>
             </div>
 
