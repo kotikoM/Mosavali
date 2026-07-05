@@ -41,6 +41,14 @@ function buildPieColors(baseHex: string, count: number): string[] {
   })
 }
 
+function matchesPickerName(p: { first_name: string; last_name: string }, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const firstLast = `${p.first_name} ${p.last_name}`.toLowerCase()
+  const lastFirst = `${p.last_name} ${p.first_name}`.toLowerCase()
+  return firstLast.includes(q) || lastFirst.includes(q)
+}
+
 // ── breakdown dropdown — portal-based to escape overflow-hidden ancestors ──
 
 interface BreakdownDropdownProps {
@@ -208,11 +216,8 @@ export default function Dashboard() {
 
   const filteredDailyStats = useMemo(() => {
     const f = pickerDailyStats.filter(p => {
-      const q = dailySearch.trim().toLowerCase()
-      const nm = !q ||
-        `${p.last_name} ${p.first_name}`.toLowerCase().includes(q) ||
-        `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)
-      const om = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.toLowerCase())
+      const nm = matchesPickerName(p, dailySearch) || p.national_id.includes(dailySearch.trim())
+      const om = !dailyOriginSearch.trim() || (p.origin_place ?? '').toLowerCase().includes(dailyOriginSearch.trim().toLowerCase())
       return nm && om
     })
     return f.sort((a, b) =>
@@ -482,7 +487,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── DAILY HARVEST TABLE ──────────────────────────────────────── */}
-      <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white' : 'rounded-2xl'}`}>
+      <div className={`bg-white border-2 border-neutral-200 shadow-lg overflow-hidden ${dailyMaximized ? 'fixed inset-0 z-50 flex flex-col bg-white overflow-y-auto' : 'rounded-2xl'}`}>
 
         {/* header bar */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-6 py-5 border-b-2 border-neutral-100 shrink-0">
@@ -573,9 +578,9 @@ export default function Dashboard() {
         ) : filteredDailyStats.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-neutral-400 text-sm">No data for this range</div>
         ) : (
-          <div className={`flex ${dailyMaximized ? 'flex-1 overflow-y-auto min-h-0' : ''}`}>
+          <div className="flex">
 
-            {/* frozen left panel */}
+            {/* frozen left panel — horizontal freeze only, no independent vertical scroll */}
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
@@ -648,8 +653,8 @@ export default function Dashboard() {
               </table>
             </div>
 
-            {/* scrollable day columns — horizontal scroll only */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            {/* scrollable day columns — horizontal scroll only, vertical grows with parent */}
+            <div className="flex-1 overflow-x-auto">
               <table>
                 <thead>
                   <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
