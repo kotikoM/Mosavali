@@ -142,6 +142,11 @@ export default function Pickers() {
       cell: info => <span className="text-sm text-neutral-600">{info.getValue<string>() ?? '—'}</span>,
     },
     {
+      header: 'Note',
+      accessorKey: 'note',
+      cell: info => <span className="text-sm text-neutral-500 italic truncate max-w-[200px] block">{info.getValue<string>() ?? '—'}</span>,
+    },
+    {
       header: 'Actions',
       id: 'actions',
       enableSorting: false,
