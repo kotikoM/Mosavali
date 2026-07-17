@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, eachDayOfInterval } from 'date-fns'
 import {
   getHarvestOverview,
@@ -9,11 +9,17 @@ import {
   getSummaryStats,
 } from '../api/harvest'
 import type { SummaryStats } from '../api/harvest'
+import { getPickers, updatePicker } from '../api/pickers'
+import type { Picker, PickerUpdate } from '../api/pickers'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { X, ChevronUp, ChevronDown, Maximize2, Minimize2, FileDown } from 'lucide-react'
+import { X, ChevronUp, ChevronDown, Maximize2, Minimize2, FileDown, Pencil } from 'lucide-react'
 import DatePicker from '../components/DatePicker'
+import PickerDialog from '../components/PickerDialog'
+import Toast from '../components/Toast'
+import { useToast } from '../hooks/useToast'
 import { exportDailyHarvestToExcel } from '../utils/exportDailyHarvest'
 import { fmtDate, todayTbilisi } from '../utils/time'
+import axios from 'axios'
 
 type FilterMode = 'day' | 'interval' | 'alltime'
 
@@ -120,6 +126,9 @@ function BreakdownDropdown({ open, onToggle, items }: BreakdownDropdownProps) {
 
 export default function Dashboard() {
 
+  const queryClient                       = useQueryClient()
+  const { toasts, addToast, removeToast } = useToast()
+
   const [filterMode,  setFilterMode]  = useState<FilterMode>('day')
   const [singleDate,  setSingleDate]  = useState(todayTbilisi)
   const [fromDate,    setFromDate]    = useState(todayTbilisi)
@@ -136,6 +145,10 @@ export default function Dashboard() {
   const [dailyOriginSearch, setDailyOriginSearch]  = useState('')
   const [exporting,         setExporting]          = useState(false)
   const [selectedPickerIds, setSelectedPickerIds]  = useState<Set<number>>(new Set())
+
+  // ── picker edit dialog state ────────────────────────────────────────
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editPicker,     setEditPicker]     = useState<Picker | null>(null)
 
   const { data: overview } = useQuery({
     queryKey: ['harvest-overview'],
@@ -164,6 +177,57 @@ export default function Dashboard() {
     queryKey: ['picker-box-stats', dailyFrom, dailyTo],
     queryFn:  () => getPickerBoxStats(dailyFrom, dailyTo),
   })
+
+  // full picker records — needed for the edit dialog (phone/bank_info/note
+  // aren't present in the harvest-stats payload). Shares the ['pickers']
+  // query key with the Pickers page, so this is a cache hit if that page
+  // has already been visited this session.
+  const { data: pickers = [] } = useQuery({
+    queryKey: ['pickers'],
+    queryFn:  getPickers,
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number, data: PickerUpdate }) => updatePicker(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pickers'] })
+      queryClient.invalidateQueries({ queryKey: ['picker-box-stats'] })
+      setEditDialogOpen(false)
+      setEditPicker(null)
+      addToast('Picker updated successfully', 'success')
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        addToast(error.response.data.detail.message, 'error')
+      } else {
+        addToast('Failed to update picker', 'error')
+      }
+    }
+  })
+
+  const handleEditSubmit = async (data: PickerUpdate): Promise<Record<string, string> | void> => {
+    if (!editPicker) return
+    try {
+      await updateMutation.mutateAsync({ id: editPicker.picker_id, data })
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        if (error.response.data.detail?.code === 'national_id_conflict') {
+          return { national_id: error.response.data.detail.message }
+        }
+      }
+      addToast('Failed to update picker', 'error')
+    }
+  }
+
+  const handleEditClick = (pickerId: number) => {
+    const picker = pickers.find(p => p.picker_id === pickerId)
+    if (!picker) {
+      addToast('Picker details still loading, try again', 'error')
+      return
+    }
+    setEditPicker(picker)
+    setEditDialogOpen(true)
+  }
 
   useEffect(() => {
     if (!bkdOpen) return
@@ -586,6 +650,7 @@ export default function Dashboard() {
                 <thead>
                   <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
                     <th className="px-4 py-4 w-10" />
+                    <th className="px-2 py-4 w-10" />
                     <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th
@@ -616,6 +681,14 @@ export default function Dashboard() {
                       >
                         <td className="px-4 py-4 align-middle">
                           <input type="checkbox" checked={isSelected} onChange={() => {}} className="w-4 h-4 rounded accent-primary-600 pointer-events-none" />
+                        </td>
+                        <td className="px-2 py-4 align-middle">
+                          <button
+                            onClick={e => { e.stopPropagation(); handleEditClick(p.picker_id) }}
+                            className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition-colors"
+                          >
+                            <Pencil size={14} strokeWidth={2.5} />
+                          </button>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap align-middle">
                           <span className="text-sm font-bold text-neutral-300 font-mono block text-center leading-none">{idx + 1}</span>
@@ -712,6 +785,18 @@ export default function Dashboard() {
       {dailyMaximized && (
         <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDailyMaximized(false)} />
       )}
+
+      {/* picker edit dialog */}
+      <PickerDialog
+        open={editDialogOpen}
+        onClose={() => { setEditDialogOpen(false); setEditPicker(null) }}
+        onSubmit={handleEditSubmit}
+        picker={editPicker}
+        loading={updateMutation.isPending}
+      />
+
+      {/* toasts */}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
     </div>
   )
