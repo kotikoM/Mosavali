@@ -139,8 +139,10 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
 
   const dailyColumns = Array.from(new Set(data.flatMap(p => Object.keys(p.days)))).sort()
 
-  const KG_COL = 7, SALARY_COL = 8, BOXES_COL = 9, PRICE_ROW = 5, HEADER_ROW = 7, DATA_START = 8
-  const FIXED_COLS = 9 + allBoxTypes.length
+  // NOTE column sits right after Bank Info — every fixed column from
+  // Total kg onward is shifted by one vs. the pre-Note layout.
+  const KG_COL = 8, SALARY_COL = 9, BOXES_COL = 10, PRICE_ROW = 5, HEADER_ROW = 7, DATA_START = 8
+  const FIXED_COLS = 10 + allBoxTypes.length
   const TOTAL_COLS = FIXED_COLS + dailyColumns.length
 
   writeHeader(ws, 'Daily Harvest — All Time', `Exported ${fmtTbilisi(new Date())}  ·  ${data.length} pickers`, TOTAL_COLS)
@@ -153,7 +155,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   priceLabel.alignment = { horizontal: 'right', vertical: 'middle' }
 
   const priceVal = ws.getCell('C5')
-  priceVal.value = 1
+  priceVal.value = 0
   priceVal.font  = { name: FONT, size: 11, bold: true, color: { argb: G.blue } }
   priceVal.fill  = fill(G.amberBg)
   priceVal.numFmt    = '#,##0.00 "GEL"'
@@ -171,6 +173,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
   const headerDefs = [
     { label: '#', width: 4 }, { label: 'Name', width: 24 }, { label: 'National ID', width: 14 },
     { label: 'Phone', width: 13 }, { label: 'Origin', width: 14 }, { label: 'Bank Info', width: 26 },
+    { label: 'Note', width: 22 },
     { label: 'Total kg', width: 11 }, { label: 'Salary (GEL)', width: 15 }, { label: 'Total Boxes', width: 12 },
     ...allBoxTypes.map(bt => ({ label: `${bt} (${boxNetWeights[bt] != null ? boxNetWeights[bt] + 'kg' : '?'})`, width: 14 })),
   ]
@@ -207,7 +210,8 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
 
     dc(1, idx + 1, { align: 'center' }); dc(2, `${p.last_name} ${p.first_name}`, { bold: true })
     dc(3, p.national_id, { align: 'center' }); dc(4, p.phone ?? '', { align: 'center' })
-    dc(5, p.origin_place ?? ''); dc(6, p.bank_info ?? ''); dc(7, p.total_kg, { bold: true, numFmt: '#,##0.0', align: 'right' })
+    dc(5, p.origin_place ?? ''); dc(6, p.bank_info ?? ''); dc(7, p.note ?? '')
+    dc(KG_COL, p.total_kg, { bold: true, numFmt: '#,##0.0', align: 'right' })
 
     const sc = r.getCell(SALARY_COL)
     sc.value = { formula: `=${col(KG_COL)}${rowN}*$C$${PRICE_ROW}`, result: p.total_kg }
@@ -216,7 +220,7 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     sc.border = { bottom: { style: 'thin', color: { argb: G.border } }, right: { style: 'thin', color: { argb: G.border } } }
 
     dc(BOXES_COL, p.total_boxes, { align: 'right', numFmt: '#,##0' })
-    allBoxTypes.forEach((bt, bti) => dc(10 + bti, p.total_box_types[bt] ?? 0, { align: 'right', numFmt: '#,##0' }))
+    allBoxTypes.forEach((bt, bti) => dc(BOXES_COL + 1 + bti, p.total_box_types[bt] ?? 0, { align: 'right', numFmt: '#,##0' }))
 
     dailyColumns.forEach((day, di) => {
       const n = FIXED_COLS + di + 1, dayData = p.days[day], hasKg = dayData && dayData.kg > 0
@@ -238,11 +242,11 @@ function buildDailyHarvestSheet(wb: ExcelJS.Workbook, data: PickerBoxStat[]) {
     c.border = { top: { style: 'medium', color: { argb: 'FF2D5229' } } }
   }
 
-  tc(1, 'TOTAL'); tc(2, `${data.length} pickers`); for (let i = 3; i <= 6; i++) tc(i, null)
+  tc(1, 'TOTAL'); tc(2, `${data.length} pickers`); for (let i = 3; i <= 7; i++) tc(i, null)
   tc(KG_COL, null, { numFmt: '#,##0.0', formula: `=SUM(${col(KG_COL)}${DATA_START}:${col(KG_COL)}${totN - 1})` })
   tc(SALARY_COL, null, { numFmt: '#,##0.00 "GEL"', formula: `=SUM(${col(SALARY_COL)}${DATA_START}:${col(SALARY_COL)}${totN - 1})`, highlight: true })
   tc(BOXES_COL, null, { numFmt: '#,##0', formula: `=SUM(${col(BOXES_COL)}${DATA_START}:${col(BOXES_COL)}${totN - 1})` })
-  allBoxTypes.forEach((_, bti) => { const c = 10 + bti; tc(c, null, { numFmt: '#,##0', formula: `=SUM(${col(c)}${DATA_START}:${col(c)}${totN - 1})` }) })
+  allBoxTypes.forEach((_, bti) => { const c = BOXES_COL + 1 + bti; tc(c, null, { numFmt: '#,##0', formula: `=SUM(${col(c)}${DATA_START}:${col(c)}${totN - 1})` }) })
   dailyColumns.forEach((_, di) => { const n = FIXED_COLS + di + 1; tc(n, null, { numFmt: '#,##0.0', formula: `=SUM(${col(n)}${DATA_START}:${col(n)}${totN - 1})`, dayCol: true }) })
 }
 
@@ -263,7 +267,8 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
   const HEADER_ROW = 4, DATA_START = 5
   const headerDefs = [
     { label: '', width: 4 }, { label: 'Name', width: 24 }, { label: 'National ID', width: 15 },
-    { label: 'Origin', width: 14 }, { label: 'Phone', width: 14 }, { label: 'Total Boxes', width: 21 },
+    { label: 'Origin', width: 14 }, { label: 'Phone', width: 14 }, { label: 'Note', width: 20 },
+    { label: 'Total Boxes', width: 21 },
     ...allBoxTypes.map(bt => ({ label: `${bt} (${boxNetWeights[bt] ?? '?'}kg)`, width: 15 })),
     { label: 'Total KG', width: 12 },
   ]
@@ -297,7 +302,8 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
 
     sc(1, pickerIdx + 1, { bold: true, align: 'center', color: G.green }); sc(2, `${picker.last_name} ${picker.first_name}`, { bold: true })
     sc(3, picker.national_id, { align: 'center' }); sc(4, picker.origin_place ?? '—'); sc(5, picker.phone, { align: 'center' })
-    sc(6, picker.total_boxes, { bold: true, align: 'right', numFmt: '#,##0' })
+    sc(6, picker.note ?? '—')
+    sc(7, picker.total_boxes, { bold: true, align: 'right', numFmt: '#,##0' })
     allBoxTypes.forEach((bt, bti) => sc(BOX_START + bti, boxCounts[bt] ?? 0, { align: 'right', numFmt: '#,##0' }))
     sc(TOTAL_KG_COL, picker.total_kg, { bold: true, align: 'right', numFmt: '#,##0.0', color: G.green })
     rowN++
@@ -336,8 +342,8 @@ function buildStickerDetailSheet(wb: ExcelJS.Workbook, data: PickerDetailExportR
     c.border = { top: { style: 'medium', color: { argb: G.headerBorder } } }
   }
 
-  gtc(1, 'TOTAL'); gtc(2, `${data.length} pickers`); for (let c = 3; c <= 5; c++) gtc(c, null)
-  gtc(6, totalBoxesAll, { numFmt: '#,##0' })
+  gtc(1, 'TOTAL'); gtc(2, `${data.length} pickers`); for (let c = 3; c <= 6; c++) gtc(c, null)
+  gtc(7, totalBoxesAll, { numFmt: '#,##0' })
   allBoxTypes.forEach((bt, bti) => gtc(BOX_START + bti, data.reduce((s, p) => s + (p.box_type_summary.find(x => x.box_name === bt)?.count ?? 0), 0), { numFmt: '#,##0' }))
   gtc(TOTAL_KG_COL, Math.round(totalKgAll * 10) / 10, { numFmt: '#,##0.0', highlight: true })
 }

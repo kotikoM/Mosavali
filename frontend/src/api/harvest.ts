@@ -99,6 +99,7 @@ export interface PickerBoxStat {
   phone:           string | null
   bank_info:       string | null
   origin_place:    string | null
+  note:            string | null
   total_kg:        number
   total_boxes:     number
   total_box_types: Record<string, number>
@@ -152,6 +153,7 @@ export interface PickerDetailExportRow {
   national_id:      string
   origin_place:     string | null
   phone:            string
+  note:             string | null
   total_boxes:      number
   total_kg:         number
   box_type_summary: PickerDetailBoxSummary[]

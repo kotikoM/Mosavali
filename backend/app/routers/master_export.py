@@ -25,6 +25,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
             Picker.phone,
             Picker.bank_info,
             Picker.origin_place,
+            Picker.note,
             HarvestEntry.harvest_date,
             Box.box_id,
             Box.name.label("box_name"),
@@ -36,7 +37,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
         .join(Box, Box.box_id == HarvestEntry.box_type_id)
         .group_by(
             Picker.picker_id, Picker.first_name, Picker.last_name,
-            Picker.national_id, Picker.phone, Picker.bank_info, Picker.origin_place,
+            Picker.national_id, Picker.phone, Picker.bank_info, Picker.origin_place, Picker.note,
             HarvestEntry.harvest_date, Box.box_id, Box.name, Box.net_weight_kg,
         )
         .order_by(Picker.picker_id, HarvestEntry.harvest_date, Box.box_id)
@@ -54,6 +55,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
                 "phone":           row.phone,
                 "bank_info":       row.bank_info,
                 "origin_place":    row.origin_place,
+                "note":            row.note,
                 "days":            {},
                 "total_kg":        0.0,
                 "total_boxes":     0,
@@ -104,6 +106,7 @@ async def master_export(db: AsyncSession = Depends(get_db)):
                 "national_id":  picker.national_id,
                 "origin_place": picker.origin_place,
                 "phone":        picker.phone,
+                "note":         picker.note,
             }
             picker_entries[pid]  = []
             picker_boxes_s2[pid] = {}
