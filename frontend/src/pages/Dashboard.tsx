@@ -292,6 +292,21 @@ export default function Dashboard() {
   const allSelected  = filteredDailyStats.length > 0 && filteredDailyStats.every(p => selectedPickerIds.has(p.picker_id))
   const someSelected = selectedPickerIds.size > 0
 
+  // Dynamic header aggregates — sums recompute in plain JS whenever the
+  // filtered rows or the selection changes. Selecting rows narrows the
+  // aggregate to just the selection (mirrors the Excel-export behavior);
+  // with nothing selected it reflects every row currently visible in the
+  // table (i.e. already respects the picker/origin search filters).
+  const dailyTotals = useMemo(() => {
+    const rows = someSelected
+      ? filteredDailyStats.filter(p => selectedPickerIds.has(p.picker_id))
+      : filteredDailyStats
+    return rows.reduce(
+      (acc, p) => ({ kg: acc.kg + p.total_kg, boxes: acc.boxes + p.total_boxes }),
+      { kg: 0, boxes: 0 },
+    )
+  }, [filteredDailyStats, selectedPickerIds, someSelected])
+
   const togglePicker = (id: number) =>
     setSelectedPickerIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
@@ -648,22 +663,32 @@ export default function Dashboard() {
             <div className="shrink-0 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.06)]">
               <table>
                 <thead>
-                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
-                    <th className="px-4 py-4 w-10" />
-                    <th className="px-2 py-4 w-10" />
-                    <th className="px-4 py-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
+                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 h-[76px] ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
+                    <th className="px-4 w-10" />
+                    <th className="px-2 w-10" />
+                    <th className="px-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
+                    <th className="px-6 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th
-                      className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
+                      className="px-6 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
                       onClick={() => handleDailySort('total_kg')}
                     >
-                      <div className="flex items-center gap-1">Total kg <DailySortIcon col="total_kg" /></div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">Total kg <DailySortIcon col="total_kg" /></div>
+                        <div className="font-mono text-[11px] font-medium text-neutral-400 normal-case tracking-normal">
+                          {dailyTotals.kg.toLocaleString()} kg total
+                        </div>
+                      </div>
                     </th>
                     <th
-                      className="px-6 py-4 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
+                      className="px-6 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
                       onClick={() => handleDailySort('total_boxes')}
                     >
-                      <div className="flex items-center gap-1">Total Boxes <DailySortIcon col="total_boxes" /></div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">Total Boxes <DailySortIcon col="total_boxes" /></div>
+                        <div className="font-mono text-[11px] font-medium text-neutral-400 normal-case tracking-normal">
+                          {dailyTotals.boxes.toLocaleString()} total
+                        </div>
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -730,9 +755,9 @@ export default function Dashboard() {
             <div className="flex-1 overflow-x-auto">
               <table>
                 <thead>
-                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
+                  <tr className={`border-b-2 border-neutral-100 bg-neutral-50 h-[76px] ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
                     {dailyColumns.map(day => (
-                      <th key={day} className="px-4 py-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap min-w-36">
+                      <th key={day} className="px-4 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap min-w-36">
                         {format(parseISO(day), 'MMM dd')}
                       </th>
                     ))}
