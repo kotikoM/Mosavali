@@ -664,9 +664,10 @@ export default function Dashboard() {
               <table>
                 <thead>
                   <tr className={`border-b-2 border-neutral-100 bg-neutral-50 h-[76px] ${dailyMaximized ? 'sticky top-0 z-10' : ''}`}>
+                    <th className="px-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
                     <th className="px-4 w-10" />
                     <th className="px-2 w-10" />
-                    <th className="px-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">#</th>
+                    <th className="px-4 text-left text-xs font-bold text-neutral-400 uppercase tracking-widest w-10">ID</th>
                     <th className="px-6 text-left text-xs font-bold text-neutral-500 uppercase tracking-widest whitespace-nowrap">Picker</th>
                     <th
                       className="px-6 text-left text-xs font-bold uppercase tracking-widest whitespace-nowrap cursor-pointer select-none hover:text-neutral-800 transition-colors"
@@ -704,6 +705,9 @@ export default function Dashboard() {
                         className="border-b border-neutral-100 transition-colors cursor-pointer"
                         style={{ backgroundColor: isSelected ? '#EDF5EC' : hoveredPicker === p.picker_id ? '#F0F5EF' : '' }}
                       >
+                        <td className="px-4 py-4 whitespace-nowrap align-middle">
+                          <span className="text-sm font-bold text-neutral-300 font-mono block text-center leading-none">{idx + 1}</span>
+                        </td>
                         <td className="px-4 py-4 align-middle">
                           <input type="checkbox" checked={isSelected} onChange={() => {}} className="w-4 h-4 rounded accent-primary-600 pointer-events-none" />
                         </td>
@@ -716,7 +720,7 @@ export default function Dashboard() {
                           </button>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap align-middle">
-                          <span className="text-sm font-bold text-neutral-300 font-mono block text-center leading-none">{idx + 1}</span>
+                          <span className="text-sm font-bold text-neutral-400 font-mono block text-center leading-none">{p.picker_id}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap align-top">
                           <span className="font-semibold text-neutral-800 block">{p.last_name} {p.first_name}</span>
